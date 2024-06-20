@@ -20,7 +20,7 @@ m_flag=0
 # Defines functions
 die() { exit 1; }
 print_version() {
-    echo "Version: $version"
+    echo -e "Version:\t$version\n"
 }
 print_logo1() {
     echo " ▄▄▄       ██▓███   ██▓███    █████   █    ██  ██▓ ▄████▄   ██ ▄█▀"
@@ -51,9 +51,10 @@ print_logo3() {
     echo "                                                                                "
 }
 print_prolog() {
-    echo "A little extractor for APK packages"
-    echo "Requirements: aapt, adb"
-    echo -e "Just give your APK file :D\n"
+    echo -e "A little extractor for APK packages"
+    echo -e "Just give your APK file :D"
+    echo -e "Requirements:\taapt, adb"
+    echo -e "Repository:\tgithub.com/redrockstyle/apk_scripts"
 }
 print_usage() {
     echo "Usage: appquick [-vfdmh] [-s <device_id>] -a <appname.apk>"
@@ -110,8 +111,8 @@ fi
 # Check null args
 if [[ $# -eq 0 ]] ; then
     print_random_logo
-    print_version
     print_prolog
+    print_version
     print_usage
     die;
 fi
