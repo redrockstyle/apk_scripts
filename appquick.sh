@@ -211,11 +211,10 @@ if [ $m_flag -eq 0 ] ; then
 
         if [ $f_flag -eq 1 ] ; then
             echo ""
-            print_verbose "Find location $pkg in /data"
             adb "${select_arg[@]}" root 1>/dev/null
             if [ $? -eq 0 ] ; then
-                print_green "Other Directories"
-                echo "$(adb "${select_arg[@]}" shell find /data -name "$pkg")"
+                print_green "Find location $pkg in /"
+                echo "$(adb "${select_arg[@]}" shell find / -name "$pkg" 2>/dev/null)"
             else
                 print_verbose "ADB root restart failed"
             fi
