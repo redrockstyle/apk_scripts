@@ -13,6 +13,7 @@ app=''
 v_flag=0
 f_flag=0
 d_flag=0
+e_flag=0
 s_flag=''
 select_arg=( )
 m_flag=0
@@ -53,17 +54,18 @@ print_logo3() {
 print_prolog() {
     echo -e "A little extractor for APK packages"
     echo -e "Just give your APK file :D"
-    echo -e "Requirements:\taapt, adb"
+    echo -e "Requirements:\taapt, adb, apkanalyzer, xmlstarlet"
     echo -e "Repository:\tgithub.com/redrockstyle/apk_scripts"
 }
 print_usage() {
-    echo "Usage: appquick [-vfdmh] [-s <device_id>] -a <appname.apk>"
+    echo "Usage: appquick [-vfdemh] [-s <device_id>] -a <appname.apk>"
     echo -e "-a\tSelect APK file"
     echo -e "-v\tVerbose mode"
     echo -e "-f\tFind some.package.format in the /data folder"
     echo -e "-d\tPrint device info"
+    echo -e "-e\tPrint only exported (exported=\"true\" in AndroidManifest.xml)"
     echo -e "-s id\tSelect device id"
-    echo -e "-m\tMinimal mode (wo connect to device)"
+    echo -e "-m\tMinimal mode (wo connect to device and print only exported=\"true\")"
     echo -e "-h\tPrint logo and usage"
 }
 print_random_logo(){
@@ -97,14 +99,26 @@ print_blue() {
 }
 
 if ! command -v adb &> /dev/null ; then
-    print_red "ADB is not installed"
+    # TODO get dynamic PATH from ADNROID_SDK variable
+    print_red "adb is not installed"
     echo "Install platform-tools or add utils in the path"
     die
 fi
-
 if ! command -v aapt &> /dev/null
 then
+    # TODO get dynamic PATH from ADNROID_SDK variable
     print_red "aapt is not installed"
+    die
+fi
+if ! command -v apkanalyzer &> /dev/null
+then
+    # TODO get dynamic PATH from ADNROID_SDK variable
+    print_red "apkanalyzer is not installed"
+    die
+fi
+if ! command -v xmlstarlet &> /dev/null
+then
+    print_red "xmlstarlet is not installed"
     die
 fi
 
@@ -118,12 +132,13 @@ if [[ $# -eq 0 ]] ; then
 fi
 
 # Parse args
-while getopts 'a:vfds:mh' flag; do
+while getopts 'a:vfdes:mh' flag; do
   case "${flag}" in
     a) app="${OPTARG}" ;;
     v) v_flag=1 ;;
     f) f_flag=1 ;;
     d) d_flag=1 ;;
+    e) e_flag=1 ;;
     s) s_flag="${OPTARG}" ;;
     m) m_flag=1 ;;
     h) print_usage
@@ -172,6 +187,119 @@ do
         echo " - `echo ${LINE} | cut -d ' ' -f 2`";
     fi
 done
+
+# Parse AndroidManifest.xml
+print_green "\nAnalyze AndroidManifest.xml"
+mnf=$(apkanalyzer -h manifest print "$app")
+
+print_green "URL schemes:"
+shm_hosts=$(echo "${mnf}" | xmlstarlet sel -t -m '//activity/intent-filter/data[@android:scheme and @android:host]' -v 'concat(@android:scheme, "://", @android:host, @android:pathPrefix, @android:path, @android:pathSufix)' -n | sort -uf)
+echo "${shm_hosts}"
+
+print_verbose "Parse activeties"
+shm_activeties=$(echo "${mnf}" | xmlstarlet sel -t -m '//activity[@android:name and @android:exported]' -v 'concat(@android:exported, " ", @android:name)' -n)
+print_green "Activities exported:"
+for LINE in $shm_activeties
+do
+    if [[ $(echo $LINE | cut -d ' ' -f 1) == "true" ]] ; then
+        echo "`echo $LINE | cut -d ' ' -f 2`"
+    fi
+done
+if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
+    print_green "Activities non exported:"
+    for LINE in $shm_activeties
+    do
+        if [[ $(echo $LINE | cut -d ' ' -f 1) == "false" ]] ; then
+            echo "`echo $LINE | cut -d ' ' -f 2`"
+        fi
+    done
+fi
+if [ $m_flag -eq 0 ] ; then
+    print_green "Activity-alias (exported):"
+    shm_activeties_alias=$(echo "${mnf}" | xmlstarlet sel -t -m '//activity-alias[@android:name and @android:exported]' -v 'concat(@android:name, " AS targetActivity:", @android:targetActivity)' -n)
+    echo "${shm_activeties_alias}"
+fi
+
+print_verbose "Parse broadcast receivers"
+shm_receivers=$(echo "${mnf}" | xmlstarlet sel -t -m '//receiver[@android:name and @android:exported]' --if '//receiver[@android:permission]' -v 'concat(@android:exported, " ", @android:name, " ", @android:permission)' -n --else -v 'concat(@android:exported, " ", @android:name)' -n)
+print_green "Broadcast receivers exported:"
+for LINE in $shm_receivers
+do
+    if [[ $(echo $LINE | cut -d ' ' -f 1) == "true" ]] ; then
+        echo "`echo $LINE | cut -d ' ' -f 2`"
+        permis=$(echo $LINE | cut -d ' ' -f 3)
+        if [[ "$permis" != '' ]] ; then
+            echo -e "\t- permission: $permis"
+        fi
+    fi
+done
+if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
+    print_green "Broadcast receivers non exported:"
+    for LINE in $shm_receivers
+    do
+        if [[ $(echo $LINE | cut -d ' ' -f 1) == "false" ]] ; then
+            echo "`echo $LINE | cut -d ' ' -f 2`"
+            permis=$(echo $LINE | cut -d ' ' -f 3)
+            if [[ "$permis" != '' ]] ; then
+                echo -e "\t- permission: $permis"
+            fi
+        fi
+    done
+fi
+
+print_verbose "Parse content providers"
+shm_provides=$(echo "${mnf}" | xmlstarlet sel -t -m '//provider[@android:name and @android:exported and @android:authorities]' -v 'concat(@android:exported, " ", @android:name, " ", @android:authorities)' -n)
+print_green "Content providers exported:"
+for LINE in $shm_provides
+do
+    if [[ $(echo $LINE | cut -d ' ' -f 1) == "true" ]] ; then
+        echo "`echo $LINE | cut -d ' ' -f 2`"
+        auth=$(echo $LINE | cut -d ' ' -f 3)
+        if [[ "$auth" != '' ]] ; then
+            echo -e "\t- authority: $auth"
+        fi
+    fi
+done
+if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
+    print_green "Content providers non exported:"
+    for LINE in $shm_provides
+    do
+        if [[ $(echo $LINE | cut -d ' ' -f 1) == "false" ]] ; then
+            echo "`echo $LINE | cut -d ' ' -f 2`"
+            auth=$(echo $LINE | cut -d ' ' -f 3)
+            if [[ "$auth" != '' ]] ; then
+                echo -e "\t- authority: $auth"
+            fi
+        fi
+    done
+fi
+
+print_verbose "Parse services"
+shm_services=$(echo "${mnf}" | xmlstarlet sel -t -m '//service[@android:name and @android:exported]' --if '//service[@android:permission]' -v 'concat(@android:exported, " ", @android:name, " ", @android:permission)' -n --else -v 'concat(@android:exported, " ", @android:name)' -n)
+print_green "Serveces exported"
+for LINE in $shm_services
+do
+    if [[ $(echo $LINE | cut -d ' ' -f 1) == "true" ]] ; then
+        echo "`echo $LINE | cut -d ' ' -f 2`"
+        permis=$(echo $LINE | cut -d ' ' -f 3)
+        if [[ "$permis" != '' ]] ; then
+            echo -e "\t- permission: $permis"
+        fi
+    fi
+done
+if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
+    print_green "Services non exported:"
+    for LINE in $shm_services
+    do
+        if [[ $(echo $LINE | cut -d ' ' -f 1) == "false" ]] ; then
+            echo "`echo $LINE | cut -d ' ' -f 2`"
+            permis=$(echo $LINE | cut -d ' ' -f 3)
+            if [[ "$permis" != '' ]] ; then
+                echo -e "\t- permission: $permis"
+            fi
+        fi
+    done
+fi
 
 if [ $m_flag -eq 0 ] ; then
     echo ""
