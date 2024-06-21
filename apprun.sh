@@ -16,20 +16,21 @@ print_green() {
 }
 print_prolog() {
     echo "Small Runtime Assistent"
-    echo "Requirements:   aapt, adb, qpdf"
+    echo "Requirements:   aapt, adb, qpdf, openssl"
     echo "Repository:     github.com/redrockstyle/apk_scripts"
 }
 print_usage() {
     echo "Usage: apprun <command> <command_argument>"
     echo "Commands:"
-    echo -e "install (i)\tClean install APK"
-    echo -e "start (s)\tStarting MainActivity"
-    echo -e "force-stop (f)\tForce-stop app"
-    echo -e "remove (r)\tFull uninstall app"
-    echo -e "backup (b)\tBackup app"
-    echo -e "extract (e)\tExtract backup file"
-    echo -e "burpcert (bc)\tPush burp cert in the system storage"
-    echo -e "setproxy (sp)\tSet http proxy android"
+    echo -e "(i)  install\tClean install APK"
+    echo -e "(s)  start\tStarting MainActivity"
+    echo -e "(f)  force-stop\tForce-stop app"
+    echo -e "(rm) remove\tFull uninstall app"
+    echo -e "(b)  backup\tBackup data app"
+    echo -e "(r)  restore\tRestore data app"
+    echo -e "(e)  extract\tExtract backup file"
+    echo -e "(bc) burpcert\tPush burp cert in the system storage"
+    echo -e "(sp) setproxy\tSet http proxy android"
 }
 print_example() {
     echo -e "Install:\tapprun i app.apk"
@@ -60,15 +61,18 @@ do_remove() {
     adb shell pm uninstall $pkg
 }
 do_backup() {
-    echo $1
     if [[ $(adb shell pm list package | grep "$1") == *"$1"* ]] ; then
         echo "Backup $1"
-        adb backup -apk $1 -f $1.adb
+        adb backup -apk $1 -f $1.backup
     else
         pkg=$(aapt dump badging $1|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')
         echo "Backup $pkg"
-        adb backup -apk $pkg -f $pkg.adb
+        adb backup -apk $pkg -f $pkg.backup
     fi
+}
+do_restore() {
+    echo -e "Restore data from $1"
+    adb restore $1
 }
 do_extract() {
     echo "Extract backup $1 file"
@@ -112,14 +116,16 @@ case $1 in
     force-stop) do_force_stop $2 ;;
     remove) do_remove $2 ;;
     backup) do_backup $2 ;;
+    restore) do_restore $2 ;;
     extract) do_extract $2 ;;
     burpcert) do_burpcert $2 ;;
     setproxy) do_setproxy $2 ;; 
     i) do_install $2 ;;
     s) do_start $2 ;;
     f) do_force_stop $2 ;;
-    r) do_remove $2 ;;
+    rm) do_remove $2 ;;
     b) do_backup $2 ;;
+    r) do_restore $2 ;;
     e) do_extract $2 ;;
     bc) do_burpcert $2 ;;
     sp) do_setproxy $2 ;;

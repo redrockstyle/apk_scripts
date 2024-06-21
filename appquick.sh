@@ -1,13 +1,14 @@
 #!/bin/bash
 
 # Version
-version="1.1.0"
+version="1.3.0"
 
 # Init values
 IFS=$'\n'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 app=''
 v_flag=0
@@ -17,6 +18,9 @@ e_flag=0
 s_flag=''
 select_arg=( )
 m_flag=0
+path_adb='adb'
+path_aapt='aapt'
+path_apkanalyzer='apkanalyzer'
 
 # Defines functions
 die() { exit 1; }
@@ -61,9 +65,9 @@ print_usage() {
     echo "Usage: appquick [-vfdemh] [-s <device_id>] -a <appname.apk>"
     echo -e "-a\tSelect APK file"
     echo -e "-v\tVerbose mode"
-    echo -e "-f\tFind some.package.format in the /data folder"
+    echo -e "-f\tFind some.package.format in the root directory"
     echo -e "-d\tPrint device info"
-    echo -e "-e\tPrint only exported (exported=\"true\" in AndroidManifest.xml)"
+    echo -e "-e\tShow non exported (exported=\"false\" in AndroidManifest.xml)"
     echo -e "-s id\tSelect device id"
     echo -e "-m\tMinimal mode (wo connect to device and print only exported=\"true\")"
     echo -e "-h\tPrint logo and usage"
@@ -88,6 +92,9 @@ print_verbose() {
         print_blue $1;
     fi
 }
+print_yellow() {
+    echo -e "$YELLOW$1$NC"
+}
 print_green() {
     echo -e "$GREEN$1$NC"
 }
@@ -99,26 +106,45 @@ print_blue() {
 }
 
 if ! command -v adb &> /dev/null ; then
-    # TODO get dynamic PATH from ADNROID_SDK variable
-    print_red "adb is not installed"
-    echo "Install platform-tools or add utils in the path"
-    die
+    if ! command -v "$HOME/Android/Sdk/platform-tools/adb" &> /dev/null ; then
+        print_red "adb is not installed"
+        print_red "Install platform-tools or add utils in the path"
+        die
+    else
+        print_yellow "adb is not contained in the PATH"
+        print_yellow "adb found in $HOME/Android/Sdk/platform-tools/adb"
+        path_adb="$HOME/Android/Sdk/platform-tools/adb"
+    fi
 fi
 if ! command -v aapt &> /dev/null
 then
-    # TODO get dynamic PATH from ADNROID_SDK variable
-    print_red "aapt is not installed"
-    die
+    ver_aapt=$(find $HOME/Android/Sdk/build-tools/ -maxdepth 1  ! -path $HOME/Android/Sdk/build-tools/ -type d -printf '%T@ %P\n' | sort -n | head -n1 | awk '{print $2}')
+    if ! command -v "$HOME/Android/Sdk/build-tools/${ver_aapt}/aapt" &> /dev/null ; then
+        print_red "aapt is not installed"
+        print_red "install cmdline-tools or add utils in the path"
+        die
+    else
+        print_yellow "aapt is not contained in the PATH"
+        print_yellow "aapt found in $HOME/Android/Sdk/build-tools/${ver_aapt}/aapt"
+        path_aapt="$HOME/Android/Sdk/build-tools/${ver_aapt}/aapt"
+    fi
 fi
 if ! command -v apkanalyzer &> /dev/null
 then
-    # TODO get dynamic PATH from ADNROID_SDK variable
-    print_red "apkanalyzer is not installed"
-    die
+    if ! command -v "$HOME/Android/Sdk/cmdline-tools/latest/bin/apkanalyzer" &> /dev/null ; then
+        print_red "apkanalyzer is not installed"
+        print_red "Install build-tools or add utils in the path"
+        die
+    else
+        print_yellow "apkanalyzer is not contained in the PATH"
+        print_yellow "apkanalyzer found in $HOME/Android/Sdk/cmdline-tools/latest/bin/apkanalyzer"
+        path_apkanalyzer="$HOME/Android/Sdk/cmdline-tools/latest/bin/apkanalyzer"
+    fi
 fi
 if ! command -v xmlstarlet &> /dev/null
 then
     print_red "xmlstarlet is not installed"
+    print_red "install: apt install xmlstarlet"
     die
 fi
 
@@ -162,17 +188,22 @@ fi
 # Static info
 print_verbose "Get package info";
 print_verbose "Runtime: aapt dump badging ${app}";
-pkg=$(aapt dump badging $app|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')
-act=$(aapt dump badging $app|awk -F" " '/launchable-activity/ {print $2}'|awk -F"'" '/name=/ {print $2}')
-ver=$(aapt dump badging $app|awk -F" " '/package/ {print $4}'|awk -F"'" '/versionName=/ {print $2}')
+aapt_info=$($path_aapt dump badging $app)
+pkg=$(echo "${aapt_info}"|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')
+act=$(echo "${aapt_info}"|awk -F" " '/launchable-activity/ {print $2}'|awk -F"'" '/name=/ {print $2}')
+ver=$(echo "${aapt_info}"|awk -F" " '/package/ {print $4}'|awk -F"'" '/versionName=/ {print $2}')
+min_sdk_version=$(echo "${aapt_info}"|awk -F" " '/sdkVersion/ {print $1}'|awk -F"'" '{print $2}')
+target_sdk_version=$(echo "${aapt_info}"|awk -F" " '/targetSdkVersion/ {print $1}'|awk -F"'" '{print $2}')
 
-print_green "Simple info"
+print_green "A little info"
 echo "Package Name: $pkg"
 echo "MainActivity: $act"
-echo "Version: $ver"
+echo "Version APK: $ver"
+echo "Minimal SDK: $min_sdk_version"
+echo "Target SDK: $target_sdk_version"
 
 print_verbose "\nParse aapt permissions"
-perm=$(aapt d permissions $app | grep "permission:")
+perm=$($path_aapt d permissions $app | grep "permission:")
 print_green "Uses Permissions:"
 for LINE in $perm
 do
@@ -190,14 +221,16 @@ done
 
 # Parse AndroidManifest.xml
 print_green "\nAnalyze AndroidManifest.xml"
-mnf=$(apkanalyzer -h manifest print "$app")
+mnf=$($path_apkanalyzer -h manifest print "$app")
 
+print_verbose "Execute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//activity/intent-filter/data[@android:scheme and @android:host]' -v 'concat(@android:scheme, \"://\", @android:host, @android:pathPrefix, @android:path, @android:pathSufix)' -n | sort -uf"
 print_green "URL schemes:"
 shm_hosts=$(echo "${mnf}" | xmlstarlet sel -t -m '//activity/intent-filter/data[@android:scheme and @android:host]' -v 'concat(@android:scheme, "://", @android:host, @android:pathPrefix, @android:path, @android:pathSufix)' -n | sort -uf)
 echo "${shm_hosts}"
 
 print_verbose "Parse activeties"
-shm_activeties=$(echo "${mnf}" | xmlstarlet sel -t -m '//activity[@android:name and @android:exported]' -v 'concat(@android:exported, " ", @android:name)' -n)
+print_verbose "Execute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//activity[@android:name and @android:exported]' -v 'concat(@android:exported, \" \", @android:name)' -n | sort -uf"
+shm_activeties=$(echo "${mnf}" | xmlstarlet sel -t -m '//activity[@android:name and @android:exported]' -v 'concat(@android:exported, " ", @android:name)' -n | sort -uf)
 print_green "Activities exported:"
 for LINE in $shm_activeties
 do
@@ -205,7 +238,7 @@ do
         echo "`echo $LINE | cut -d ' ' -f 2`"
     fi
 done
-if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
+if [ $e_flag -eq 1 ] && [ $m_flag -eq 0 ] ; then
     print_green "Activities non exported:"
     for LINE in $shm_activeties
     do
@@ -215,13 +248,16 @@ if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
     done
 fi
 if [ $m_flag -eq 0 ] ; then
+    print_verbose "Parse Activity-alias"
+    print_verbose "Execute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//activity-alias[@android:name and @android:exported]' -v 'concat(@android:name, \" AS targetActivity:\", @android:targetActivity)' -n | sort -uf"
     print_green "Activity-alias (exported):"
-    shm_activeties_alias=$(echo "${mnf}" | xmlstarlet sel -t -m '//activity-alias[@android:name and @android:exported]' -v 'concat(@android:name, " AS targetActivity:", @android:targetActivity)' -n)
+    shm_activeties_alias=$(echo "${mnf}" | xmlstarlet sel -t -m '//activity-alias[@android:name and @android:exported]' -v 'concat(@android:name, " AS targetActivity:", @android:targetActivity)' -n | sort -uf)
     echo "${shm_activeties_alias}"
 fi
 
 print_verbose "Parse broadcast receivers"
-shm_receivers=$(echo "${mnf}" | xmlstarlet sel -t -m '//receiver[@android:name and @android:exported]' --if '//receiver[@android:permission]' -v 'concat(@android:exported, " ", @android:name, " ", @android:permission)' -n --else -v 'concat(@android:exported, " ", @android:name)' -n)
+print_verbose "Execute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//receiver[@android:name and @android:exported]' --if '//receiver[@android:permission]' -v 'concat(@android:exported, \" \", @android:name, \" \", @android:permission)' -n --else -v 'concat(@android:exported, \" \", @android:name)' -n | sort -uf"
+shm_receivers=$(echo "${mnf}" | xmlstarlet sel -t -m '//receiver[@android:name and @android:exported]' --if '//receiver[@android:permission]' -v 'concat(@android:exported, " ", @android:name, " ", @android:permission)' -n --else -v 'concat(@android:exported, " ", @android:name)' -n | sort -uf)
 print_green "Broadcast receivers exported:"
 for LINE in $shm_receivers
 do
@@ -233,7 +269,7 @@ do
         fi
     fi
 done
-if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
+if [ $e_flag -eq 1 ] && [ $m_flag -eq 0 ] ; then
     print_green "Broadcast receivers non exported:"
     for LINE in $shm_receivers
     do
@@ -248,7 +284,8 @@ if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
 fi
 
 print_verbose "Parse content providers"
-shm_provides=$(echo "${mnf}" | xmlstarlet sel -t -m '//provider[@android:name and @android:exported and @android:authorities]' -v 'concat(@android:exported, " ", @android:name, " ", @android:authorities)' -n)
+print_verbose "Execute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//provider[@android:name and @android:exported and @android:authorities]' -v 'concat(@android:exported, \" \", @android:name, \" \", @android:authorities)' -n | sort -uf"
+shm_provides=$(echo "${mnf}" | xmlstarlet sel -t -m '//provider[@android:name and @android:exported and @android:authorities]' -v 'concat(@android:exported, " ", @android:name, " ", @android:authorities)' -n | sort -uf)
 print_green "Content providers exported:"
 for LINE in $shm_provides
 do
@@ -260,7 +297,7 @@ do
         fi
     fi
 done
-if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
+if [ $e_flag -eq 1 ] && [ $m_flag -eq 0 ] ; then
     print_green "Content providers non exported:"
     for LINE in $shm_provides
     do
@@ -275,7 +312,8 @@ if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
 fi
 
 print_verbose "Parse services"
-shm_services=$(echo "${mnf}" | xmlstarlet sel -t -m '//service[@android:name and @android:exported]' --if '//service[@android:permission]' -v 'concat(@android:exported, " ", @android:name, " ", @android:permission)' -n --else -v 'concat(@android:exported, " ", @android:name)' -n)
+print_verbose "Exucute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//service[@android:name and @android:exported]' --if '//service[@android:permission]' -v 'concat(@android:exported, \" \", @android:name, \" \", @android:permission)' -n --else -v 'concat(@android:exported, \" \", @android:name)' -n | sort -uf"
+shm_services=$(echo "${mnf}" | xmlstarlet sel -t -m '//service[@android:name and @android:exported]' --if '//service[@android:permission]' -v 'concat(@android:exported, " ", @android:name, " ", @android:permission)' -n --else -v 'concat(@android:exported, " ", @android:name)' -n | sort -uf)
 print_green "Serveces exported"
 for LINE in $shm_services
 do
@@ -287,7 +325,7 @@ do
         fi
     fi
 done
-if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
+if [ $e_flag -eq 1 ] && [ $m_flag -eq 0 ] ; then
     print_green "Services non exported:"
     for LINE in $shm_services
     do
@@ -301,48 +339,66 @@ if [ $e_flag -eq 0 ] && [ $m_flag -eq 0 ] ; then
     done
 fi
 
+print_green "App misconfigurations:"
+confs=()
+if [[ $(echo "${mnf}" | grep "android:allowBackup=\"true\"") != "" ]] ; then
+    confs+=("android:allowBackup=\"true\"")
+fi
+if [[ $(echo "${mnf}" | grep "android:debuggable=\"true\"") != "" ]] ; then
+    confs+=("android:debuggable=\"true\"")
+fi
+len_confs=${#confs[@]}
+if [ $len_confs -ne 0 ] ; then
+    for (( i=0; i<$len_confs; i++ )) ;
+    do
+        echo "${confs[i]}"
+    done
+else
+    print_green "Nothing"
+fi
+
 if [ $m_flag -eq 0 ] ; then
     echo ""
-    print_verbose "Find device connection"
+    print_verbose "Find adb connections"
     dp="device product:"
 
     if [[ "$s_flag" == '' ]] ; then
-        dev=$(adb devices -l 2>/dev/null | grep "$dp")
+        dev=$(${path_adb} devices -l 2>/dev/null | grep "$dp")
     else
-        dev=$(adb devices -l 2>/dev/null | grep "$s_flag")
+        dev=$(${path_adb} devices -l 2>/dev/null | grep "$s_flag")
     fi
     if [ $? -ne 0 ] ; then
-        print_verbose "No device connections";
+        print_verbose "No adb connections";
         die;
     fi
     dev_id=$(echo $dev | cut -d ':' -f 1)
     print_verbose "Device $dev_id is found"
 
-    pml=$(adb "${select_arg[@]}" shell pm list package | grep $pkg)
+    pml=$(${path_adb} "${select_arg[@]}" shell pm list package | grep $pkg)
     if [[ "${dev}" == *"${dp}"* ]] && [[ "${pml}" == *"${pkg}"* ]] ; then
         # If this pkg is installed
         if [ $d_flag -eq 1 ] ; then
-            echo ""
             print_verbose "Get info of device with adb "${select_arg[@]}" shell getprop"
             print_green "Device Info"
             echo "ID: ${dev_id}"
             echo "Device: `echo $dev | awk -F "$dp" '{print $2}'`"
-            echo "Version Android: `adb "${select_arg[@]}" shell getprop ro.build.version.release`"
-            echo "SDK Version: `adb "${select_arg[@]}" shell getprop ro.build.version.sdk`"
+            echo "Version Android: `${path_adb} "${select_arg[@]}" shell getprop ro.build.version.release`"
+            echo "SDK Version: `${path_adb} "${select_arg[@]}" shell getprop ro.build.version.sdk`"
+            echo ""
         fi
 
         print_verbose "Get location info installed app"
         print_green "Package Info"
-        echo "Path APK: `adb "${select_arg[@]}" shell pm path $pkg | cut -d ':' -f 2`"
+        echo "Path APK: `${path_adb} "${select_arg[@]}" shell pm path $pkg | cut -d ':' -f 2`"
         echo "Path Data: /data/data/$pkg"
         echo "Link Data: /data/user/0/$pkg"
 
         if [ $f_flag -eq 1 ] ; then
             echo ""
-            adb "${select_arg[@]}" root 1>/dev/null
+            ${path_adb} "${select_arg[@]}" root 1>/dev/null
             if [ $? -eq 0 ] ; then
                 print_green "Find location $pkg in /"
-                echo "$(adb "${select_arg[@]}" shell find / -name "$pkg" 2>/dev/null)"
+                echo "$(${path_adb} "${select_arg[@]}" shell find / -name "$pkg" 2>/dev/null)"
             else
                 print_verbose "ADB root restart failed"
             fi
