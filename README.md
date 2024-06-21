@@ -2,5 +2,5 @@
 ## APPQUICK: Getting APK information
 ![image](./img/appquick.png)
 
-## APPRUN: Starting/Installing/Removing/Force-Stop app
+## APPRUN: Runtime operations with app
 ![image](./img/apprun.png)
