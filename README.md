@@ -1,4 +1,3 @@
-# Simple bash scripts for Android APK
 ## APPQUICK: Getting APK information
 ![image](./img/appquick.png)
 
