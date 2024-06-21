@@ -347,6 +347,15 @@ fi
 if [[ $(echo "${mnf}" | grep "android:debuggable=\"true\"") != "" ]] ; then
     confs+=("android:debuggable=\"true\"")
 fi
+if [[ $(echo "${mnf}" | grep "android:autoVerify=\"true\"") != "" ]] ; then
+    confs+=("android:autoVerify=\"true\"")
+fi
+if [[ $(echo "${mnf}" | grep "cleartextTrafficPermitted=\"true\"") != "" ]] ; then
+    confs+=("cleartextTrafficPermitted=\"true\"")
+fi
+if [[ $(echo "${mnf}" | grep "usesCleartextTraffic=\"true\"") != "" ]] ; then
+    confs+=("usesCleartextTraffic=\"true\"")
+fi
 len_confs=${#confs[@]}
 if [ $len_confs -ne 0 ] ; then
     for (( i=0; i<$len_confs; i++ )) ;
