@@ -1,8 +1,9 @@
 #!/bin/bash
 
-version="1.1.0"
+version="1.2.0"
 
 IFS=$'\n'
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 prolog="apprun: "
@@ -14,23 +15,27 @@ print_version() {
 print_green() {
     echo -e "$GREEN$1$NC"
 }
+print_red() {
+    echo -e "$RED$1$NC"
+}
 print_prolog() {
     echo "Small Runtime Assistent"
-    echo "Requirements:   aapt, adb, qpdf, openssl"
+    echo "Requirements:   aapt, adb, qpdf, openssl, apksigner"
     echo "Repository:     github.com/redrockstyle/apk_scripts"
 }
 print_usage() {
     echo "Usage: apprun <command> <command_argument>"
-    echo "Commands:"
-    echo -e "(i)  install\tClean install APK"
-    echo -e "(s)  start\tStarting MainActivity"
-    echo -e "(f)  force-stop\tForce-stop app"
-    echo -e "(rm) remove\tFull uninstall app"
-    echo -e "(b)  backup\tBackup data app"
-    echo -e "(r)  restore\tRestore data app"
-    echo -e "(e)  extract\tExtract backup file"
-    echo -e "(bc) burpcert\tPush burp cert in the system storage"
-    echo -e "(sp) setproxy\tSet http proxy android"
+    echo -e "(i)  install\t- Clean install APK"
+    echo -e "(s)  start\t- Starting MainActivity"
+    echo -e "(f)  force-stop\t- Force-stop app"
+    echo -e "(rm) remove\t- Full uninstall app"
+    echo -e "(b)  backup\t- Backup data app"
+    echo -e "(r)  restore\t- Restore data app"
+    echo -e "(e)  extract\t- Extract backup file"
+    echo -e "(bc) burpcert\t- Push burp cert in the system storage"
+    echo -e "(sp) setproxy\t- Set http proxy android"
+    echo -e "(pc) printcert\t- Print certs APK package"
+    echo -e "(lc) logcat\t- Print logcat for app"
 }
 print_example() {
     echo -e "Install:\tapprun i app.apk"
@@ -38,6 +43,30 @@ print_example() {
     echo -e "Set proxy:\tapprun sp 192.168.1.100:8080"
     echo -e "Disable proxy:\tapprun sp :0"
     echo -e "Backup app:\tapprun backup app.apk"
+    echo -e "Logcat app:\tapprun lc some.package.name"
+    echo -e "Logcat app:\tapprun lc app.apk"
+}
+get_pkg_name() {
+    pkg=''
+    ret=$2
+    if [[ $(adb shell pm list package | grep "$1") == *"$1"* ]] ; then
+        pkg="$1"
+        ret="$pkg";
+    else
+        pkg=$(aapt dump badging $1 2>/dev/null|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')
+        if [ $? -eq 0 ] ; then
+            ret="$pkg";
+        else
+            ret="";
+        fi
+    fi
+}
+check_and_die(){
+    if [[ $1 == "" ]] ; then
+        print_red "Unsupported argument"
+        print_usage
+        die
+    fi
 }
 do_install() {
     echo "Install $1"
@@ -50,25 +79,30 @@ do_start() {
     adb shell am start -n $pkg/$act
 }
 do_force_stop() {
-    pkg=$(aapt dump badging $1|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')
+    pkg=''
+    get_pkg_name $1 pkg
+    check_and_die $pkg
+
     echo "Force-stop $pkg"
     adb shell am force-stop $pkg
 }
 do_remove() {
-    pkg=$(aapt dump badging $1|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')
+    pkg=''
+    get_pkg_name $1 pkg
+    check_and_die $pkg
+
     echo "Remove $pkg"
     # ignore flag -k and clear all data app
     adb shell pm uninstall $pkg
 }
 do_backup() {
-    if [[ $(adb shell pm list package | grep "$1") == *"$1"* ]] ; then
-        echo "Backup $1"
-        adb backup -apk $1 -f $1.backup
-    else
-        pkg=$(aapt dump badging $1|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')
-        echo "Backup $pkg"
-        adb backup -apk $pkg -f $pkg.backup
-    fi
+    pkg=''
+    get_pkg_name $1 pkg
+    check_and_die $pkg
+
+    echo "Backup $pkg"
+    adb backup -apk $pkg -f $pkg.backup
+    echo "Saved in $pkg.backup"
 }
 do_restore() {
     echo -e "Restore data from $1"
@@ -93,6 +127,13 @@ do_burpcert() {
 do_setproxy() {
     echo "Set $1 http proxy"
     adb shell settings put global http_proxy $1
+}
+do_printcerts(){
+    apksigner verify --print-certs -v $1
+}
+do_logcatapp(){
+    echo "Start logcat"
+    adb logcat -T 1000 io.faceapp:V *:S -v color
 }
 
 if [[ $# -eq 0 ]] ; then
@@ -119,7 +160,9 @@ case $1 in
     restore) do_restore $2 ;;
     extract) do_extract $2 ;;
     burpcert) do_burpcert $2 ;;
-    setproxy) do_setproxy $2 ;; 
+    setproxy) do_setproxy $2 ;;
+    printcert) do_printcerts $2 ;;
+    logcat) do_logcatapp $2 ;;
     i) do_install $2 ;;
     s) do_start $2 ;;
     f) do_force_stop $2 ;;
@@ -129,6 +172,8 @@ case $1 in
     e) do_extract $2 ;;
     bc) do_burpcert $2 ;;
     sp) do_setproxy $2 ;;
+    pc) do_printcerts $2 ;;
+    lc) do_logcatapp $2 ;;
     *) echo "Unsupported command"
         die ;;
 esac
