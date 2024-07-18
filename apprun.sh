@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="1.2.0"
+version="1.2.1"
 
 IFS=$'\n'
 RED='\033[0;31m'
@@ -17,6 +17,10 @@ print_green() {
 }
 print_red() {
     echo -e "$RED$1$NC"
+}
+msg_and_die() {
+    print_red $1
+    die
 }
 print_prolog() {
     echo "Small Runtime Assistent"
@@ -61,50 +65,64 @@ get_pkg_name() {
         fi
     fi
 }
-check_and_die(){
+check_appname() {
     if [[ $1 == "" ]] ; then
-        print_red "Unsupported argument"
-        print_usage
-        die
+        msg_and_die "App is not installed"
+    fi
+}
+check_connect() {
+    dev=$(adb devices -l 2>/dev/null | grep "device product")
+    if [ $? -ne 0 ] ; then
+        msg_and_die "Device is not connected"
+    fi
+    count=$(echo $dev | wc -l)
+    if [ $count -ne 1 ] ; then
+        msg_and_die "Connected $count devices (one connect supported)"
     fi
 }
 do_install() {
+    check_connect
     echo "Install $1"
     adb install -r $1
 }
 do_start() {
+    check_connect
     pkg=$(aapt dump badging $1|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')
     act=$(aapt dump badging $1|awk -F" " '/launchable-activity/ {print $2}'|awk -F"'" '/name=/ {print $2}')
     echo "Start $pkg/$act"
     adb shell am start -n $pkg/$act
 }
 do_force_stop() {
+    check_connect
     pkg=''
     get_pkg_name $1 pkg
-    check_and_die $pkg
+    check_appname $pkg
 
     echo "Force-stop $pkg"
     adb shell am force-stop $pkg
 }
 do_remove() {
+    check_connect
     pkg=''
     get_pkg_name $1 pkg
-    check_and_die $pkg
+    check_appname $pkg
 
     echo "Remove $pkg"
     # ignore flag -k and clear all data app
     adb shell pm uninstall $pkg
 }
 do_backup() {
+    check_connect
     pkg=''
     get_pkg_name $1 pkg
-    check_and_die $pkg
+    check_appname $pkg
 
     echo "Backup $pkg"
     adb backup -apk $pkg -f $pkg.backup
     echo "Saved in $pkg.backup"
 }
 do_restore() {
+    check_connect
     echo -e "Restore data from $1"
     adb restore $1
 }
@@ -113,6 +131,7 @@ do_extract() {
     dd if=$1 bs=24 skip=1 | zlib-flate -uncompress | tar xf -
 }
 do_burpcert() {
+    check_connect
     tmp_pem="bcert.pem"
     echo "Convert certificate"
     openssl x509 -inform DER -in $1 -out "${tmp_pem}"
@@ -125,6 +144,7 @@ do_burpcert() {
     rm "${tmp_name}".0
 }
 do_setproxy() {
+    check_connect
     echo "Set $1 http proxy"
     adb shell settings put global http_proxy $1
 }
@@ -132,6 +152,7 @@ do_printcerts(){
     apksigner verify --print-certs -v $1
 }
 do_logcatapp(){
+    check_connect
     echo "Start logcat"
     adb logcat -T 1000 io.faceapp:V *:S -v color
 }
@@ -174,6 +195,6 @@ case $1 in
     sp) do_setproxy $2 ;;
     pc) do_printcerts $2 ;;
     lc) do_logcatapp $2 ;;
-    *) echo "Unsupported command"
+    *) print_red "Unsupported command"
         die ;;
 esac

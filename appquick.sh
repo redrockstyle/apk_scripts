@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Version
-version="1.3.0"
+version="1.4.1"
 
 # Init values
 IFS=$'\n'
@@ -398,9 +398,24 @@ if [ $m_flag -eq 0 ] ; then
 
         print_verbose "Get location info installed app"
         print_green "Package Info"
-        echo "Path APK: `${path_adb} "${select_arg[@]}" shell pm path $pkg | cut -d ':' -f 2`"
-        echo "Path Data: /data/data/$pkg"
-        echo "Link Data: /data/user/0/$pkg"
+        env_data_path=$(${path_adb} shell echo \$ANDROID_DATA)
+        data_path="$env_data_path/user/0"
+        echo -e "BaseAPKPath:\t`${path_adb} "${select_arg[@]}" shell pm path $pkg | cut -d ':' -f 2`"
+
+        real_data_path=$(${path_adb} shell realpath ${data_path})
+        print_green "Link->RealDataPath: $data_path --> $real_data_path"
+        echo -e "DataPath:\t$data_path/$pkg"
+        echo -e "CachePath:\t$data_path/$pkg/cache"
+        echo -e "CodeCachePath:\t$data_path/$pkg/code_cache"
+        echo -e "FilesPath:\t$data_path/$pkg/files"
+
+        link_ext_path=$(${path_adb} shell echo \$EXTERNAL_STORAGE)
+        real_ext_path=$(${path_adb} shell realpath $link_ext_path)
+        print_green "Link->RealExtStorage: $link_ext_path -> $real_ext_path"
+        echo -e "ExtDataPath:\t$real_ext_path/Android/data/$pkg"
+        echo -e "ExtObbPath:\t$real_ext_path/Android/obb/$pkg"
+
+
 
         if [ $f_flag -eq 1 ] ; then
             echo ""
