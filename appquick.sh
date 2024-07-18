@@ -106,7 +106,12 @@ print_blue() {
     echo -e "$BLUE$1$NC"
 }
 
-check_and_init() {
+check_and_init_vars() {
+    if [ -z $1 ] ; then
+        print_verbose "Argument -a is required"
+        print_usage;
+        die;
+    fi
     if ! test -f $1; then
         print_red "APK file does not exist"
         die
@@ -157,6 +162,9 @@ check_and_init() {
     if [ $? -ne 0 ] ; then
         print_red "Invalid APK file"
         die
+    fi
+    if [[ "$s_flag" != '' ]] ; then
+        select_arg=( -s "${s_flag}" )
     fi
 }
 
@@ -388,17 +396,7 @@ while getopts 'a:vfdes:mh' flag; do
   esac
 done
 
-# Check requred appname
-if [ -z $app ] ; then
-    print_verbose "Argument -a is required"
-    print_usage;
-    die;
-fi
-check_and_init $app
-
-if [[ "$s_flag" != '' ]] ; then
-    select_arg=( -s "${s_flag}" )
-fi
+check_and_init_vars $app
 
 print_package_info $app
 print_permissions $app
