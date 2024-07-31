@@ -153,8 +153,12 @@ do_printcerts(){
 }
 do_logcatapp(){
     check_connect
-    echo "Start logcat"
-    adb logcat -T 1000 io.faceapp:V *:S -v color
+    pkg=''
+    get_pkg_name $1 pkg
+    check_appname $pkg
+
+    echo "Start logcat for $pkg"
+    adb logcat -T 15 $pkg:V -v color
 }
 
 if [[ $# -eq 0 ]] ; then
