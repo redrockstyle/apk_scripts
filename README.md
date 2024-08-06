@@ -1,5 +1,5 @@
-## APPQUICK: Getting APK information
+## APPQUICK: Getting information about the app
 ![image](./img/appquick.png)
 
-## APPRUN: Runtime operations with app
+## APPRUN: Active actions with the app
 ![image](./img/apprun.png)
