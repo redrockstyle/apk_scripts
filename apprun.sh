@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="1.2.1"
+version="1.2.3"
 
 IFS=$'\n'
 RED='\033[0;31m'
@@ -156,9 +156,14 @@ do_logcatapp(){
     pkg=''
     get_pkg_name $1 pkg
     check_appname $pkg
+    sdk_version=$(adb shell getprop ro.build.version.sdk)
 
     echo "Start logcat for $pkg"
-    adb logcat -T 15 $pkg:V -v color
+    if [ "$sdk_version" -lt "25" ]; then
+        adb logcat -T 10 $pkg:V *:S -v color
+    else
+        adb logcat --pid=$(adb shell pidof -s $pkg) -v color
+    fi
 }
 
 if [[ $# -eq 0 ]] ; then
