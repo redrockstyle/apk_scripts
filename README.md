@@ -1,8 +1,8 @@
 ## appquick: Get info app (APK or package)
-<div style="text-align:center"><img src="./img/appquick.png" /></div>
+<p align="center"><img src="./img/appquick.png" /></p>
 
 ## apprun: Support operations (APK or package)
-<div style="text-align:center"><img src="./img/apprun.png" /></div>
+<p align="center"><img src="./img/apprun.png" /></p>
 
 ## Versions
 ### AppQuick: 1.6.2
