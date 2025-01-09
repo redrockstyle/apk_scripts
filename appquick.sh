@@ -1,24 +1,32 @@
 #!/bin/bash
 
 # Version
-version="1.5.2"
+version="1.6.2"
 
-# Init values
+# Init values (default)
+# Colors
 IFS=$'\n'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
+# Script arguments
 app=''
+pkg=''
+aapt_info=''
+# Flags
 v_flag=0
 f_flag=0
 d_flag=0
 e_flag=0
+i_flag=0
 s_flag=''
-select_arg=( )
+select_arg=( ) # device id
 m_flag=0
+# Path tools
 path_adb='adb'
+path_adb_wo_s='adb'
 path_aapt='aapt'
 path_apkanalyzer='apkanalyzer'
 mnf=''
@@ -57,19 +65,21 @@ print_logo3() {
     echo "                                                                                "
 }
 print_prolog() {
-    echo -e "A little extractor for APK packages"
-    echo -e "Just give your APK file :D"
+    echo -e "Welcome to appquick!"
+    echo -e "This is a small script for collecting information about the app"
+    echo -e "Just give your APK file or some.package.name :D"
     echo -e "Requirements:\taapt, adb, apkanalyzer, xmlstarlet"
     echo -e "Repository:\tgithub.com/redrockstyle/apk_scripts"
 }
 print_usage() {
     echo "Usage: appquick [-vfdemh] [-s <device_id>] -a <appname.apk>"
-    echo -e "-a\tSelect APK file"
+    echo -e "-a\tAPK file or package.name.format"
     echo -e "-v\tVerbose mode"
     echo -e "-f\tFind some.package.format in the root directory"
     echo -e "-d\tPrint device info"
     echo -e "-e\tShow non exported (exported=\"false\" in AndroidManifest.xml)"
     echo -e "-s id\tSelect device id"
+    echo -e "-i id\tForce install/reinstall APK or Import base.apk (depending on -a)"
     echo -e "-m\tMinimal mode (wo connect to device and print only exported=\"true\")"
     echo -e "-h\tPrint logo and usage"
 }
@@ -106,15 +116,20 @@ print_blue() {
     echo -e "$BLUE$1$NC"
 }
 
+is_inst_pkg() {
+    if [[ $(${path_adb} "${select_arg[@]}" shell pm list package | grep $1) == *"$1"* ]] ; then
+        return 1
+    else
+        return 0
+    fi
+}
+
 check_and_init_vars() {
+    inst=false
     if [ -z $1 ] ; then
         print_verbose "Argument -a is required"
         print_usage;
         die;
-    fi
-    if ! test -f $1; then
-        print_red "APK file does not exist"
-        die
     fi
     if ! command -v adb &> /dev/null ; then
         if ! command -v "$HOME/Android/Sdk/platform-tools/adb" &> /dev/null ; then
@@ -158,25 +173,86 @@ check_and_init_vars() {
         print_red "install: apt install xmlstarlet"
         die
     fi
-    mnf=$($path_apkanalyzer -h manifest print "$1" 2>/dev/null)
-    if [ $? -ne 0 ] ; then
-        print_red "Invalid APK file"
-        die
-    fi
+
     if [[ "$s_flag" != '' ]] ; then
-        select_arg=( -s "${s_flag}" )
+        select_arg=( -s ${s_flag} )
+        #path_adb_wo_s=${path_adb}
+        #path_adb="${path_adb} ${select_arg[@]}"
+        print_verbose "ADB runtime as \"${path_adb} ${select_arg[@]}\""
     fi
+
+    if ! test -f $1; then
+        print_verbose "APK file does not exist"
+        # print_red "Invalid APK file"
+        # die
+
+        pkg=$app
+        print_verbose "Search installed package..."
+        is_inst_pkg $pkg
+        res=$?
+        if [[ ${res} -eq 1 ]] ; then
+            print_verbose "Package name is found"
+            if [ $i_flag -eq 1 ] ; then
+                path_to_apk="$(${path_adb} ${select_arg[@]} shell pm path ${pkg} | awk -F':' '{print $2}')"
+                apk_name="${pkg}-$(tr -dc [:alnum:] < /dev/urandom | head -c 8).apk"
+
+                ${path_adb} ${select_arg[@]} pull "${path_to_apk}" "${apk_name}" &> /dev/null
+                print_yellow "APK file has been saved in ${apk_name}"
+
+                if [ $? -eq 0 ] ; then
+                    app=${apk_name}
+                    aapt_info=$($path_aapt dump badging $app)
+                else
+                    app=''
+                fi
+            else
+                app=''
+            fi
+        else
+            print_red "APK or package name is not found"
+            die
+        fi
+    else
+        print_verbose "APK file is found"
+
+        print_verbose "Run: aapt dump badging ${1}";
+        aapt_info=$($path_aapt dump badging $app)
+        pkg="$(echo "${aapt_info}"|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')"
+
+        if [ $i_flag -eq 1 ] ; then
+            is_inst_pkg $pkg
+            res=$?
+            if [[ ${res} -eq 1 ]] ; then
+                print_yellow "Remove ${pkg}:"
+                ${path_adb} ${select_arg[@]} shell pm uninstall $pkg
+            fi
+            print_yellow "Install ${pkg}:"
+            ${path_adb} ${select_arg[@]} install -r $app
+            echo ""
+        fi
+    fi
+
+    mnf=$($path_apkanalyzer -h manifest print "$app" 2>/dev/null)
+
+
 }
 
 print_package_info() {
     print_verbose "Get package info";
-    print_verbose "Runtime: aapt dump badging ${1}";
-    aapt_info=$($path_aapt dump badging $1)
-    pkg=$(echo "${aapt_info}"|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')
-    act=$(echo "${aapt_info}"|awk -F" " '/launchable-activity/ {print $2}'|awk -F"'" '/name=/ {print $2}')
-    ver=$(echo "${aapt_info}"|awk -F" " '/package/ {print $4}'|awk -F"'" '/versionName=/ {print $2}')
-    min_sdk_version=$(echo "${aapt_info}"|awk -F" " '/sdkVersion/ {print $1}'|awk -F"'" '{print $2}')
-    target_sdk_version=$(echo "${aapt_info}"|awk -F" " '/targetSdkVersion/ {print $1}'|awk -F"'" '{print $2}')
+
+    if [[ "${app}" != '' ]] ; then
+        act=$(echo "${aapt_info}"|awk -F" " '/launchable-activity/ {print $2}'|awk -F"'" '/name=/ {print $2}')
+        ver=$(echo "${aapt_info}"|awk -F" " '/package/ {print $4}'|awk -F"'" '/versionName=/ {print $2}')
+        min_sdk_version=$(echo "${aapt_info}"|awk -F" " '/sdkVersion/ {print $1}'|awk -F"'" '{print $2}')
+        target_sdk_version=$(echo "${aapt_info}"|awk -F" " '/targetSdkVersion/ {print $1}'|awk -F"'" '{print $2}')
+    else
+        sdk_ver=$(${path_adb} ${select_arg[@]} shell dumpsys package ${pkg} | grep Sdk)
+
+        act=$(${path_adb} ${select_arg[@]} shell dumpsys package ${pkg} | sed -n '/MAIN:/{n;p;}' | awk -F" " '{print $2}' | sed 's/\///')
+        ver=$(${path_adb} ${select_arg[@]} shell dumpsys package ${pkg} | grep versionName | awk -F"=" '{print $2}')
+        min_sdk_version=$(echo "${sdk_ver}" | awk -F"=" '{print $3}' | awk -F" " '{print $1}')
+        target_sdk_version=$(echo "${sdk_ver}" | awk -F"=" '{print $4}')
+    fi
 
     print_green "Package info"
     echo "Package Name: $pkg"
@@ -187,22 +263,32 @@ print_package_info() {
 }
 
 print_permissions() {
-    print_verbose "\nParse aapt permissions"
-    perm=$($path_aapt d permissions $1 | grep "permission:")
-    print_green "Uses Permissions:"
-    for LINE in $perm
-    do
-        if [[ $LINE == *"uses-permission:"* ]]; then
-            echo " - `echo ${LINE} | cut -d \' -f 2`";
-        fi
-    done
-    print_green "Defines Permissions:"
-    for LINE in $perm
-    do
-        if [[ $LINE != *"uses-permission:"* ]]; then
-            echo " - `echo ${LINE} | cut -d ' ' -f 2`";
-        fi
-    done
+    print_verbose "\nGet permissions..."
+
+    if [[ "${app}" != '' ]] ; then
+        print_verbose "Parse permissions via aapt"
+
+        perm=$($path_aapt d permissions $app | grep "permission:")
+        print_green "Uses Permissions:"
+        for LINE in $perm
+        do
+            if [[ $LINE == *"uses-permission:"* ]]; then
+                echo " - `echo ${LINE} | cut -d \' -f 2`";
+            fi
+        done
+        print_green "Defines Permissions:"
+        for LINE in $perm
+        do
+            if [[ $LINE != *"uses-permission:"* ]]; then
+                echo " - `echo ${LINE} | cut -d ' ' -f 2`";
+            fi
+        done
+    else
+        print_verbose "Parse permissions via dumpsys"
+
+        print_green "Permissions:"
+        echo -e "$(${path_adb} ${select_arg[@]} shell dumpsys package ${pkg} | sed -n '/declared permissions:/,/User /p' | sed  -e '$ d')"
+    fi
 }
 
 print_parsed_manifest_template() {
@@ -237,6 +323,10 @@ print_parsed_manifest_template() {
 }
 
 print_parsed_manifest() {
+    if [[ "${app}" == '' ]] ; then
+        return
+    fi
+
     print_green "\nAnalyze AndroidManifest.xml"
 
     print_verbose "Execute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//activity/intent-filter/data[@android:scheme and @android:host]' -v 'concat(@android:scheme, \"://\", @android:host, @android:pathPrefix, @android:path, @android:pathSufix)' -n | sort -uf"
@@ -283,6 +373,10 @@ parse_misconf_template() {
 }
 
 print_misconf() {
+    if [[ "${app}" == '' ]] ; then
+        return
+    fi
+
     print_green "App misconfigurations:"
     confs=()
     parse_misconf_template "android:allowBackup=\"true\""
@@ -325,7 +419,7 @@ print_directories() {
             if [ $d_flag -eq 1 ] ; then
                 print_verbose "Get info of device with adb "${select_arg[@]}" shell getprop"
                 print_green "Device Info"
-                echo "$(adb shell uname -a)"
+                echo "$(${path_adb} "${select_arg[@]}" shell uname -a)"
                 echo "ID: ${dev_id}"
                 echo "Device: `echo $dev | awk -F "$dp" '{print $2}'`"
                 echo "Version Android: `${path_adb} "${select_arg[@]}" shell getprop ro.build.version.release`"
@@ -335,19 +429,19 @@ print_directories() {
 
             print_verbose "Get location info installed app"
             print_green "Package Info"
-            env_data_path=$(${path_adb} shell echo \$ANDROID_DATA)
+            env_data_path=$(${path_adb} ${select_arg[@]} shell echo \$ANDROID_DATA)
             data_path="$env_data_path/user/0"
             echo -e "BaseAPKPath:\t`${path_adb} "${select_arg[@]}" shell pm path $pkg | cut -d ':' -f 2`"
 
-            real_data_path=$(${path_adb} shell realpath ${data_path})
+            real_data_path=$(${path_adb} ${select_arg[@]} shell realpath ${data_path})
             print_green "Link->RealDataPath: $data_path --> $real_data_path"
-            echo -e "DataPath:\t$data_path/$pkg"
-            echo -e "CachePath:\t$data_path/$pkg/cache"
-            echo -e "CodeCachePath:\t$data_path/$pkg/code_cache"
-            echo -e "FilesPath:\t$data_path/$pkg/files"
+            echo -e "DataPath:\t$real_data_path/$pkg"
+            echo -e "CachePath:\t$real_data_path/$pkg/cache"
+            echo -e "CodeCachePath:\t$real_data_path/$pkg/code_cache"
+            echo -e "FilesPath:\t$real_data_path/$pkg/files"
 
-            link_ext_path=$(${path_adb} shell echo \$EXTERNAL_STORAGE)
-            real_ext_path=$(${path_adb} shell realpath $link_ext_path)
+            link_ext_path=$(${path_adb} ${select_arg[@]} shell echo \$EXTERNAL_STORAGE)
+            real_ext_path=$(${path_adb} ${select_arg[@]} shell realpath $link_ext_path)
             print_green "Link->RealExtStorage: $link_ext_path -> $real_ext_path"
             echo -e "ExtDataPath:\t$real_ext_path/Android/data/$pkg"
             echo -e "ExtObbPath:\t$real_ext_path/Android/obb/$pkg"
@@ -380,13 +474,14 @@ if [[ $# -eq 0 ]] ; then
 fi
 
 # Parse args
-while getopts 'a:vfdes:mh' flag; do
+while getopts 'a:vfdeis:mh' flag; do
   case "${flag}" in
     a) app="${OPTARG}" ;;
     v) v_flag=1 ;;
     f) f_flag=1 ;;
     d) d_flag=1 ;;
     e) e_flag=1 ;;
+    i) i_flag=1 ;;
     s) s_flag="${OPTARG}" ;;
     m) m_flag=1 ;;
     h) print_usage
@@ -398,8 +493,8 @@ done
 
 check_and_init_vars $app
 
-print_package_info $app
-print_permissions $app
+print_package_info
+print_permissions
 print_parsed_manifest
 print_misconf
 print_directories
