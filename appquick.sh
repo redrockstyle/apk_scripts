@@ -72,16 +72,17 @@ print_prolog() {
     echo -e "Repository:\tgithub.com/redrockstyle/apk_scripts"
 }
 print_usage() {
-    echo "Usage: appquick [-vfdemh] [-s <device_id>] -a <appname.apk>"
+    echo "Usage: appquick [-vfdeimh] [-s <device_id>] -a <appname.apk>"
     echo -e "-a\tAPK file or package.name.format"
     echo -e "-v\tVerbose mode"
     echo -e "-f\tFind some.package.format in the root directory"
     echo -e "-d\tPrint device info"
     echo -e "-e\tShow non exported (exported=\"false\" in AndroidManifest.xml)"
     echo -e "-s id\tSelect device id"
-    echo -e "-i id\tForce install/reinstall APK or Import base.apk (depending on -a)"
+    echo -e "-i\tForce install/reinstall APK or Import base.apk (depending on -a)"
     echo -e "-m\tMinimal mode (wo connect to device and print only exported=\"true\")"
     echo -e "-h\tPrint logo and usage"
+    echo -e "-V\tPrint version"
 }
 print_random_logo(){
     rand_val=$((1 + $RANDOM % 3))
@@ -474,7 +475,7 @@ if [[ $# -eq 0 ]] ; then
 fi
 
 # Parse args
-while getopts 'a:vfdeis:mh' flag; do
+while getopts 'a:vfdeis:mhV' flag; do
   case "${flag}" in
     a) app="${OPTARG}" ;;
     v) v_flag=1 ;;
@@ -484,6 +485,8 @@ while getopts 'a:vfdeis:mh' flag; do
     i) i_flag=1 ;;
     s) s_flag="${OPTARG}" ;;
     m) m_flag=1 ;;
+    V) echo $version
+       die ;;
     h) print_usage
        die ;;
     *) print_usage
