@@ -188,23 +188,28 @@ check_and_init_vars() {
         # die
 
         pkg=$app
-        print_verbose "Search installed package..."
+        print_verbose "Search package..."
         is_inst_pkg $pkg
         res=$?
         if [[ ${res} -eq 1 ]] ; then
-            print_verbose "Package name is found"
+            print_yellow "Package $pkg is found"
             if [ $i_flag -eq 1 ] ; then
                 path_to_apk="$(${path_adb} ${select_arg[@]} shell pm path ${pkg} | awk -F':' '{print $2}')"
-                apk_name="${pkg}-$(tr -dc [:alnum:] < /dev/urandom | head -c 8).apk"
+                apk_mask="${pkg}-$(tr -dc [:alnum:] < /dev/urandom | head -c 8)"
 
-                ${path_adb} ${select_arg[@]} pull "${path_to_apk}" "${apk_name}" &> /dev/null
-                print_yellow "APK file has been saved in ${apk_name}"
+                for LINE in ${path_to_apk}
+                do
+                    echo "Loading ${LINE}..."
+                    ${path_adb} ${select_arg[@]} pull "${LINE}" "${apk_mask}-${LINE##*/}" &> /dev/null
+                done
+                app="${apk_mask}-base.apk"
 
-                if [ $? -eq 0 ] ; then
-                    app=${apk_name}
-                    aapt_info=$($path_aapt dump badging $app)
-                else
+                if ! test -f $app; then
+                    print_red "Error load file"
                     app=''
+                else
+                    print_yellow "Base APK file has been saved in ${app}\n"
+                    aapt_info=$($path_aapt dump badging $app)
                 fi
             else
                 app=''
@@ -217,7 +222,13 @@ check_and_init_vars() {
         print_verbose "APK file is found"
 
         print_verbose "Run: aapt dump badging ${1}";
-        aapt_info=$($path_aapt dump badging $app)
+        aapt_info=$($path_aapt dump badging $app &>/dev/null)
+
+        if [ $? -ne 0 ] ; then
+            print_red "File \"${app}\" is not APK format"
+            die
+        fi
+
         pkg="$(echo "${aapt_info}"|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')"
 
         if [ $i_flag -eq 1 ] ; then
