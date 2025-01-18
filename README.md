@@ -5,6 +5,10 @@
 <p align="center"><img src="./img/apprun.png" /></p>
 
 ## Versions
+### AppQuick: 1.7.3
+* added formats support: XAPK (APK-Pure), APKM (APK-Mirror), APKS (SAI)
+* added autoinstall and autoimport for XAPK, APKM and APKS
+* added cleanup (argument -c)
 ### AppQuick: 1.6.3
 * fix for importing multiple APK files
 * correct unload if adb has no connections
