@@ -7,11 +7,10 @@ uninstall_src(){
     usr_path="/usr/local/bin/$name_bin"
 
     if [ ! -f "$usr_path" ]; then
-        echo "Error: Source script '$usr_path' not found in the current directory."
-        exit 1
+      printf "%-10s %-26s %s\n" "$name_bin" "$usr_path" "Failed: Tool is not found"
     fi
     rm -f "$usr_path"
-    echo "$name_bin ($usr_path) successful uninstalled"
+    printf "%-10s %-26s %s\n" "$name_bin" "$usr_path" "Success"
 }
 
 echo "Unistalling apk_scripts..."
@@ -21,6 +20,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+printf "%-10s %-26s %s\n" "Tool" "Path" "Status"
 uninstall_src "appquick" "/usr/local/bin"
 uninstall_src "apprun" "/usr/local/bin"
 uninstall_src "getcert" "/usr/local/bin"
