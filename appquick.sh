@@ -76,16 +76,16 @@ print_prolog() {
 print_usage() {
     echo "Usage: appquick [-vfdeicmh] [-s <device_id>] -a <appname.apk>"
     echo -e "-a\tAPK/APKM/XAPK/APKS file or package.name.format"
-    echo -e "-v\tVerbose mode"
+    echo -e "-v\tVerbose mode (more detailed output)"
     echo -e "-f\tFind some.package.format in the root directory"
     echo -e "-d\tPrint device info"
-    echo -e "-e\tShow non exported (exported=\"false\" in AndroidManifest.xml)"
-    echo -e "-s id\tSelect device id"
-    echo -e "-i\tForce install/reinstall APK or Import base.apk (depending on -a)"
-    echo -e "-c\tCleanup after exiting"
+    echo -e "-e\tShow non-exported components (exported=\"false\" in AndroidManifest.xml)"
+    echo -e "-s id\tSelect device id for ADB commands"
+    echo -e "-i\tForce install/reinstall APK or import base.apk (depending on -a)"
+    echo -e "-c\tCleanup temporary files after exiting"
     echo -e "-m\tMinimal mode: print only basic info"
-    echo -e "-h\tPrint usage"
-    echo -e "-V\tPrint version"
+    echo -e "-h\tPrint this help message"
+    echo -e "-V\tPrint version information"
 }
 print_random_logo(){
     rand_val=$((1 + $RANDOM % 3))
@@ -142,6 +142,14 @@ is_base_apk() {
     fi
 }
 
+is_connected() {
+    if ! $(${path_adb} "${select_arg[@]}" get-state 1>/dev/null 2>&1) ; then
+        return 1
+    else
+        return 0
+    fi
+}
+
 get_aapt_dump() {
     print_verbose "Run aapt dump badging ${1}";
     aapt_info=$($path_aapt dump badging $1)
@@ -151,9 +159,7 @@ get_aapt_dump() {
     fi
 }
 remove_if_exists() {
-    is_inst_pkg $pkg
-    res=$?
-    if [[ ${res} -eq 1 ]] ; then
+    if is_inst_pkg $pkg ; then
         print_yellow "Removing ${pkg}:"
         ${path_adb} ${select_arg[@]} shell pm uninstall $pkg
     fi
@@ -162,9 +168,7 @@ remove_if_exists() {
 search_and_import() {
     pkg=$app
     print_verbose "Search package..."
-    is_inst_pkg $pkg
-    res=$?
-    if [[ ${res} -eq 1 ]] ; then
+    if is_inst_pkg $pkg ; then
         print_yellow "Package $pkg is found"
         if [ $i_flag -eq 1 ] ; then
             rand_suffix=$(echo -e $cmd_rand | bash)
@@ -212,7 +216,7 @@ extract_and_install() {
             die
         fi
 
-        pkg="$(echo "${aapt_info}"|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')"
+        pkg=$(grep -oP "package: name='\K[^']+" <<< "$aapt_info")
         if [ $i_flag -eq 1 ] ; then
             remove_if_exists ${pkg}
             print_yellow "Install ${pkg}:"
@@ -297,50 +301,48 @@ extract_and_install() {
     fi
 }
 
+check_and_init_tool() {
+    tool_name=$1
+    fallback_path=$2
+    need_install=$3
+    return_value=$4
+
+    if ! command -v "$tool_name" &> /dev/null; then
+        if [ -n "$fallback_path" ] && [ -x "$fallback_path" ]; then
+            print_yellow "$tool_name is not in PATH but found at $fallback_path"
+            print_verbose "$tool_name found in $fallback_path"
+            declare -g "$return_value"="$fallback_path"
+        else
+            print_red "$tool_name is not installed and not found in PATH"
+            print_red "install $need_install or add util in PATH"
+            die
+        fi
+    else
+        print_verbose "$tool_name found in PATH"
+        declare -g "$return_value"="$tool_name"
+    fi
+}
+
 check_and_init_vars() {
     if [ -z $1 ] ; then
         print_verbose "Argument -a is required"
         print_usage;
         die;
     fi
-    if ! command -v adb &> /dev/null ; then
-        if ! command -v "$HOME/Android/Sdk/platform-tools/adb" &> /dev/null ; then
-            print_red "adb is not installed"
-            print_red "Install platform-tools or add utils in the path"
-            die
-        else
-            print_yellow "adb is not contained in the PATH"
-            print_yellow "adb found in $HOME/Android/Sdk/platform-tools/adb"
-            path_adb="$HOME/Android/Sdk/platform-tools/adb"
-        fi
+    
+    ver_aapt=""
+    found_path=""
+    vers_aapt=$(find $HOME/Android/Sdk/build-tools/ -maxdepth 1  ! -path $HOME/Android/Sdk/build-tools/ -type d -printf '%T@ %P\n' 2>/dev/null)
+    if [[ $vers_aapt != "" ]] ; then
+        ver_aapt=$(echo "$vers_aapt" | sort -n | head -n1 | cut -d' ' -f2)
+        print_verbose "Found last aapt version: $ver_aapt"
+        found_path="$HOME/Android/Sdk/build-tools/${ver_aapt}/aapt"
     fi
-    if ! command -v aapt &> /dev/null
-    then
-        ver_aapt=$(find $HOME/Android/Sdk/build-tools/ -maxdepth 1  ! -path $HOME/Android/Sdk/build-tools/ -type d -printf '%T@ %P\n' | sort -n | head -n1 | awk '{print $2}')
-        if ! command -v "$HOME/Android/Sdk/build-tools/${ver_aapt}/aapt" &> /dev/null ; then
-            print_red "aapt is not installed"
-            print_red "install cmdline-tools or add utils in the path"
-            die
-        else
-            print_yellow "aapt is not contained in the PATH"
-            print_yellow "aapt found in $HOME/Android/Sdk/build-tools/${ver_aapt}/aapt"
-            path_aapt="$HOME/Android/Sdk/build-tools/${ver_aapt}/aapt"
-        fi
-    fi
-    if ! command -v apkanalyzer &> /dev/null
-    then
-        if ! command -v "$HOME/Android/Sdk/cmdline-tools/latest/bin/apkanalyzer" &> /dev/null ; then
-            print_red "apkanalyzer is not installed"
-            print_red "Install build-tools or add utils in the path"
-            die
-        else
-            print_yellow "apkanalyzer is not contained in the PATH"
-            print_yellow "apkanalyzer found in $HOME/Android/Sdk/cmdline-tools/latest/bin/apkanalyzer"
-            path_apkanalyzer="$HOME/Android/Sdk/cmdline-tools/latest/bin/apkanalyzer"
-        fi
-    fi
-    if ! command -v xmlstarlet &> /dev/null
-    then
+    check_and_init_tool $path_aapt $found_path "cmdline-tools" "path_aapt"
+    check_and_init_tool $path_adb "$HOME/Android/Sdk/platform-tools/adb" "platform-tools" "path_adb"
+    check_and_init_tool $path_apkanalyzer "$HOME/Android/Sdk/cmdline-tools/latest/bin/apkanalyzer" "build-tools" "path_apkanalyzer"
+
+    if ! command -v xmlstarlet &> /dev/null ; then
         print_red "xmlstarlet is not installed"
         print_red "install: apt install xmlstarlet"
         die
@@ -522,6 +524,11 @@ print_misconf() {
 }
 
 print_directories() {
+    if ! is_connected ; then
+        print_red "Device is not connected"
+        return
+    fi
+
     if [[ "${pkg}" == '' ]] ; then
         print_verbose "Package for parse directories is not defined"
         return
@@ -560,10 +567,22 @@ print_directories() {
 }
 
 print_device() {
+    if ! is_connected ; then
+        print_red "Device is not connected"
+        return
+    fi
+
     print_verbose "Get info of device with adb $(echo "${select_arg[@]}") shell getprop"
+
+    dp="device product:"
+    if [[ "$s_flag" == '' ]] ; then
+        dev=$(adb devices -l 2>/dev/null | grep "$dp")
+    else
+        dev=$(adb devices -l 2>/dev/null | grep "$s_flag")
+    fi
     print_green "Device Info"
     echo "$(${path_adb} "${select_arg[@]}" shell uname -a)"
-    echo "ID: ${dev_id}"
+    echo "ID: `echo $dev | cut -d ':' -f 1`"
     echo "Device: `echo $dev | awk -F "$dp" '{print $2}'`"
     echo "Version Android: `${path_adb} "${select_arg[@]}" shell getprop ro.build.version.release`"
     echo "SDK Version: `${path_adb} "${select_arg[@]}" shell getprop ro.build.version.sdk`"
