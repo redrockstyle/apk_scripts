@@ -23,6 +23,7 @@ fi
 
 uninstall_src "appquick" "/usr/local/bin"
 uninstall_src "apprun" "/usr/local/bin"
+uninstall_src "getcert" "/usr/local/bin"
 rm -rf "$opt_dir"
 
 echo "Done"

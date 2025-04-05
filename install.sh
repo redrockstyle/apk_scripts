@@ -6,18 +6,18 @@ install_src(){
     name_bin=$3
 
     if [ ! -f "$filename" ]; then
-        echo "Error: Source script '$filename' not found in the current directory."
-        exit 1
+      printf "%-10s %-26s %s\n" "$name_bin" "<Not copied>" "Failed: Source script is not found"
+    else
+      opt_path="$name_dir/$filename"
+      usr_path="/usr/local/bin/$name_bin"
+
+      mkdir -p $name_dir
+      cp "$filename" "$opt_path"
+      chmod +x "$opt_path"
+      ln -sf "$opt_path" "$usr_path"
+
+      printf "%-10s %-26s %s\n" "$name_bin" "$usr_path" "Success"
     fi
-    opt_path="$name_dir/$filename"
-    usr_path="/usr/local/bin/$name_bin"
-
-    mkdir -p $name_dir
-    cp "$filename" "$opt_path"
-    chmod +x "$opt_path"
-    ln -sf "$opt_path" "$usr_path"
-
-    echo "$name_bin ($usr_path) successful installed"
 }
 
 echo "Installing apk_scripts..."
@@ -27,8 +27,10 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+printf "%-10s %-26s %s\n" "Tool" "Path" "Status"
 install_src "appquick.sh" "/opt/src/apk_scripts" "appquick"
 install_src "apprun.sh" "/opt/src/apk_scripts" "apprun"
+install_src "getcert.sh" "/opt/src/apk_scripts" "getcert"
 
 echo "Done"
 exit 0

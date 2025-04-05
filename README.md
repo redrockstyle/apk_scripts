@@ -8,14 +8,14 @@ For proper operation, you need:
 - An Android device connected via `adb connect`
 
 ## Install / Uninstall
-`sudo install.sh` / `sudo uninstall.sh`
+`sudo bash install.sh` / `sudo bash uninstall.sh`
 
 ## Tools
 
-### AppQuick: Quick App Analysis
+<h2 align="center">AppQuick: Quick App Analysis</h2>
 <p align="center"><img src="./img/appquick.png" /></p>
 
-### AppRun: Quick Runtime Actions
+<h2 align="center">AppRun: Quick Runtime Actions</h2>
 <p align="center"><img src="./img/apprun.png" /></p>
 
 ## Versions
