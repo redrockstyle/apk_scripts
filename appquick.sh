@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version
+name="appquick"
 version="1.7.3"
 
 # Init values (default)
@@ -67,14 +67,14 @@ print_logo3() {
     echo "                                                                                "
 }
 print_prolog() {
-    echo -e "Welcome to appquick!"
+    echo -e "Welcome to ${name}!"
     echo -e "This is a small script for collecting information about the app"
     echo -e "Just put your package file or some.package.name :D"
     echo -e "Requirements:\taapt, adb, apkanalyzer, xmlstarlet, unzip"
     echo -e "Repository:\tgithub.com/redrockstyle/apk_scripts"
 }
 print_usage() {
-    echo "Usage: appquick [-vfdeicmh] [-s <device_id>] -a <appname.apk>"
+    echo "Usage: ${name} [-vfdeicmh] [-s <device_id>] -a <application>"
     echo -e "-a\tAPK/APKM/XAPK/APKS file or package.name.format"
     echo -e "-v\tVerbose mode (more detailed output)"
     echo -e "-f\tFind some.package.format in the root directory"
@@ -84,8 +84,8 @@ print_usage() {
     echo -e "-i\tForce install/reinstall APK or import base.apk (depending on -a)"
     echo -e "-c\tCleanup temporary files after exiting"
     echo -e "-m\tMinimal mode: print only basic info"
-    echo -e "-h\tPrint this help message"
     echo -e "-V\tPrint version information"
+    echo -e "-h\tPrint this help message"
 }
 print_random_logo(){
     rand_val=$((1 + $RANDOM % 3))
@@ -462,33 +462,57 @@ print_parsed_manifest() {
 
     print_green "Analyze AndroidManifest.xml"
 
-    print_verbose "Execute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//activity/intent-filter/data[@android:scheme and @android:host]' -v 'concat(@android:scheme, \"://\", @android:host, @android:pathPrefix, @android:path, @android:pathSufix)' -n | sort -uf"
-    shm_hosts=$(echo "${mnf}" | xmlstarlet sel -t -m '//activity/intent-filter/data[@android:scheme and @android:host]' -v 'concat(@android:scheme, "://", @android:host, @android:pathPrefix, @android:path, @android:pathSufix)' -n | sort -uf)
+    shm_hosts=$( \
+        echo "${mnf}" | xmlstarlet sel -N android="http://schemas.android.com/apk/res/android" \
+        -t -m "//activity/intent-filter/data[@android:scheme and @android:host]" \
+        -v "concat(@android:scheme, '://', @android:host, @android:pathPrefix, @android:path, @android:pathSufix)" -n | sort -uf \
+    )
     print_green_echo_if_not_empty "URL schemes:" "${shm_hosts}"
 
     print_verbose "Parse activeties"
-    print_verbose "Execute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//activity[@android:name and @android:exported]' -v 'concat(@android:exported, \" \", @android:name)' -n | sort -uf"
-    shm_activeties=$(echo "${mnf}" | xmlstarlet sel -t -m '//activity[@android:name and @android:exported]' -v 'concat(@android:exported, " ", @android:name)' -n | sort -uf)
+    shm_activeties=$( \
+        echo "${mnf}" | xmlstarlet sel -N android="http://schemas.android.com/apk/res/android" \
+        -t -m "//activity[@android:name and @android:exported]" \
+        -v "concat(@android:exported, ' ', @android:name)" -n | sort -uf \
+    )
     print_parsed_manifest_template "$shm_activeties" "Activities" ""
 
-    print_verbose "Parse Activity-alias"
-    print_verbose "Execute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//activity-alias[@android:name and @android:exported]' -v 'concat(@android:name, \" AS targetActivity:\", @android:targetActivity)' -n | sort -uf"
-    shm_activeties_alias=$(echo "${mnf}" | xmlstarlet sel -t -m '//activity-alias[@android:name and @android:exported]' -v 'concat(@android:name, " AS targetActivity:", @android:targetActivity)' -n | sort -uf)
+    print_verbose "Parse activity-alias"
+    shm_activeties_alias=$( \
+        echo "${mnf}" | xmlstarlet sel -N android="http://schemas.android.com/apk/res/android" \
+        -t -m "//activity-alias[@android:name and @android:exported]" \
+        -v "concat(@android:name, ' AS targetActivity:', @android:targetActivity)" -n | sort -uf \
+    )
     print_green_echo_if_not_empty "Activity-alias (exported):" "${shm_activeties_alias}"
 
     print_verbose "Parse broadcast receivers"
-    print_verbose "Execute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//receiver[@android:name and @android:exported]' --if '//receiver[@android:permission]' -v 'concat(@android:exported, \" \", @android:name, \" \", @android:permission)' -n --else -v 'concat(@android:exported, \" \", @android:name)' -n | sort -uf"
-    shm_receivers=$(echo "${mnf}" | xmlstarlet sel -t -m '//receiver[@android:name and @android:exported]' --if '//receiver[@android:permission]' -v 'concat(@android:exported, " ", @android:name, " ", @android:permission)' -n --else -v 'concat(@android:exported, " ", @android:name)' -n | sort -uf)
+    shm_receivers=$( \
+        echo "${mnf}" | xmlstarlet sel -N android="http://schemas.android.com/apk/res/android" \
+        -t -m "//receiver[@android:name and @android:exported]" \
+        -v "concat(@android:exported, ' ', @android:name, ' ', @android:permission)" \
+        # -o " intent-filter:" \
+        # -m "intent-filter" \
+        #     -m "action" \
+        #         -o " " -v "@android:name" \
+        # -b \
+        -n | sort -uf \
+    )
     print_parsed_manifest_template "$shm_receivers" "Broadcast receivers" "permission"
 
     print_verbose "Parse content providers"
-    print_verbose "Execute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//provider[@android:name and @android:exported and @android:authorities]' -v 'concat(@android:exported, \" \", @android:name, \" \", @android:authorities)' -n | sort -uf"
-    shm_provides=$(echo "${mnf}" | xmlstarlet sel -t -m '//provider[@android:name and @android:exported and @android:authorities]' -v 'concat(@android:exported, " ", @android:name, " ", @android:authorities)' -n | sort -uf)
+    shm_provides=$( \
+        echo "${mnf}" | xmlstarlet sel -N android="http://schemas.android.com/apk/res/android" \
+        -t -m "//provider[@android:name and @android:exported and @android:authorities]" \
+        -v "concat(@android:exported, ' ', @android:name, ' ', @android:authorities)" -n | sort -uf \
+    )
     print_parsed_manifest_template "$shm_provides" "Content providers" "authority"
 
     print_verbose "Parse services"
-    print_verbose "Exucute: echo AndroidManifest.xml | xmlstarlet sel -t -m '//service[@android:name and @android:exported]' --if '//service[@android:permission]' -v 'concat(@android:exported, \" \", @android:name, \" \", @android:permission)' -n --else -v 'concat(@android:exported, \" \", @android:name)' -n | sort -uf"
-    shm_services=$(echo "${mnf}" | xmlstarlet sel -t -m '//service[@android:name and @android:exported]' --if '//service[@android:permission]' -v 'concat(@android:exported, " ", @android:name, " ", @android:permission)' -n --else -v 'concat(@android:exported, " ", @android:name)' -n | sort -uf)
+    shm_services=$( \
+        echo "${mnf}" | xmlstarlet sel -N android="http://schemas.android.com/apk/res/android" \
+        -t -m "//service[@android:name and @android:exported]" \
+        -v "concat(@android:exported, ' ', @android:name, ' ', @android:permission)" -n | sort -uf \
+    )
     print_parsed_manifest_template "$shm_services" "Serveces" "permission"
 }
 
@@ -525,7 +549,7 @@ print_misconf() {
 
 print_directories() {
     if ! is_connected ; then
-        print_red "Device is not connected"
+        print_yellow "Device is not connected: Skip print dirs"
         return
     fi
 
@@ -568,7 +592,7 @@ print_directories() {
 
 print_device() {
     if ! is_connected ; then
-        print_red "Device is not connected"
+        print_red "Device is not connected: Skip print device"
         return
     fi
 

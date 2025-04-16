@@ -1,12 +1,12 @@
 #!/bin/bash
 
+name="apprun"
 version="1.2.3"
 
 IFS=$'\n'
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
-prolog="apprun: "
 
 die() { exit 1; }
 print_version() {
@@ -28,7 +28,7 @@ print_prolog() {
     echo "Repository:     github.com/redrockstyle/apk_scripts"
 }
 print_usage() {
-    echo "Usage: apprun <command> <command_argument>"
+    echo "Usage: ${name} <command> <command_argument>"
     echo -e "(i)  install\t- Clean install APK"
     echo -e "(s)  start\t- Starting MainActivity"
     echo -e "(f)  force-stop\t- Force-stop app"
@@ -42,13 +42,13 @@ print_usage() {
     echo -e "(lc) logcat\t- Print logcat for app"
 }
 print_example() {
-    echo -e "Install:\tapprun i app.apk"
-    echo -e "Remove:\t\tapprun remove app.apk"
-    echo -e "Set proxy:\tapprun sp 192.168.1.100:8080"
-    echo -e "Disable proxy:\tapprun sp :0"
-    echo -e "Backup app:\tapprun backup app.apk"
-    echo -e "Logcat app:\tapprun lc some.package.name"
-    echo -e "Logcat app:\tapprun lc app.apk"
+    echo -e "Install:\t${name} i app.apk"
+    echo -e "Remove:\t\t${name} remove app.apk"
+    echo -e "Set proxy:\t${name} sp 192.168.1.100:8080"
+    echo -e "Disable proxy:\t${name} sp :0"
+    echo -e "Backup app:\t${name} backup app.apk"
+    echo -e "Logcat app:\t${name} lc some.package.name"
+    echo -e "Logcat app:\t${name} lc app.apk"
 }
 get_pkg_name() {
     pkg=''
@@ -182,28 +182,17 @@ if [[ $# -ne 2 ]] ; then
 fi
 
 case $1 in
-    install) do_install $2 ;;
-    start) do_start $2 ;;
-    force-stop) do_force_stop $2 ;;
-    remove) do_remove $2 ;;
-    backup) do_backup $2 ;;
-    restore) do_restore $2 ;;
-    extract) do_extract $2 ;;
-    burpcert) do_burpcert $2 ;;
-    setproxy) do_setproxy $2 ;;
-    printcert) do_printcerts $2 ;;
-    logcat) do_logcatapp $2 ;;
-    i) do_install $2 ;;
-    s) do_start $2 ;;
-    f) do_force_stop $2 ;;
-    rm) do_remove $2 ;;
-    b) do_backup $2 ;;
-    r) do_restore $2 ;;
-    e) do_extract $2 ;;
-    bc) do_burpcert $2 ;;
-    sp) do_setproxy $2 ;;
-    pc) do_printcerts $2 ;;
-    lc) do_logcatapp $2 ;;
+    install|i) do_install $2 ;;
+    start|s) do_start $2 ;;
+    force-stop|f) do_force_stop $2 ;;
+    remove|rm) do_remove $2 ;;
+    backup|b) do_backup $2 ;;
+    restore|r) do_restore $2 ;;
+    extract|e) do_extract $2 ;;
+    burpcert|bc) do_burpcert $2 ;;
+    setproxy|sp) do_setproxy $2 ;;
+    printcert|pc) do_printcerts $2 ;;
+    logcat|lc) do_logcatapp $2 ;;
     *) print_red "Unsupported command"
         die ;;
 esac
