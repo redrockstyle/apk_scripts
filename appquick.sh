@@ -489,13 +489,7 @@ print_parsed_manifest() {
     shm_receivers=$( \
         echo "${mnf}" | xmlstarlet sel -N android="http://schemas.android.com/apk/res/android" \
         -t -m "//receiver[@android:name and @android:exported]" \
-        -v "concat(@android:exported, ' ', @android:name, ' ', @android:permission)" \
-        # -o " intent-filter:" \
-        # -m "intent-filter" \
-        #     -m "action" \
-        #         -o " " -v "@android:name" \
-        # -b \
-        -n | sort -uf \
+        -v "concat(@android:exported, ' ', @android:name, ' ', @android:permission)" -n | sort -uf \
     )
     print_parsed_manifest_template "$shm_receivers" "Broadcast receivers" "permission"
 
