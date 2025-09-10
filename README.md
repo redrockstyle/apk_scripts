@@ -1,6 +1,6 @@
 # APK Scripts
 
-This repository provides tools for automating the testing of Android applications.
+Helper-tools for testing Android applications
 
 ## Requirements
 For proper operation, you need:
