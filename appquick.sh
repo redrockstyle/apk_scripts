@@ -1,7 +1,7 @@
 #!/bin/bash
 
 name="appquick"
-version="1.7.3"
+version="1.7.4"
 
 # Init values (default)
 # Colors
@@ -128,9 +128,9 @@ print_green_echo_if_not_empty(){
 
 is_inst_pkg() {
     if [[ $(${path_adb} "${select_arg[@]}" shell pm list package | grep $1) == *"$1"* ]] ; then
-        return 1
-    else
         return 0
+    else
+        return 1
     fi
 }
 
