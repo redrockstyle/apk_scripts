@@ -82,8 +82,13 @@ check_connect() {
 }
 do_install() {
     check_connect
-    echo "Install $1"
-    adb install -r $1
+    if test -f $1; then
+        echo "Install $1"
+        adb install -r $1
+    else
+        echo "Call Intent to Google Play"
+        adb shell am start -W -a android.intent.action.VIEW -d $(echo -e "https://play.google.com/store/apps/details?id=$1")
+    fi
 }
 do_start() {
     check_connect
