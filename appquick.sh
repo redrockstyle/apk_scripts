@@ -135,10 +135,10 @@ is_inst_pkg() {
 }
 
 is_base_apk() {
-    if [[ $(echo "$1" | head -n 1 | grep "split") != "" ]] ; then
-        return 1
-    else
+    if [[ $(echo "$1" | head -n 1 | grep "base") != "" ]] ; then
         return 0
+    else
+        return 1
     fi
 }
 
@@ -242,7 +242,7 @@ extract_and_install() {
             echo -e "Extracted APK: ${LINE}"
             if is_base_apk $LINE ; then
                 app=$LINE
-                #break
+                # break
             fi
         done
 
@@ -253,11 +253,11 @@ extract_and_install() {
         fi
 
         get_aapt_dump "${rand_dir}/${app}"
-        pkg="$(echo "${aapt_info}"|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')"
+        pkg=$(grep -oP "package: name='\K[^']+" <<< "$aapt_info")
 
         workdir="${pkg}-split-${rand_dir}"
         mv "${rand_dir}" "${workdir}"
-        app="${workdir}/${app}"
+        app="./${workdir}/${app}"
 
         print_yellow "Packages has been saved in ${workdir}\n"
 
@@ -275,7 +275,7 @@ extract_and_install() {
         fi
 
         if [ "${old_app: -5}" == ".xapk" ] || [ "${old_app: -5}" == ".XAPK" ] ; then
-            list_obb_files=$(ls -1 $rand_dir | grep "obb")
+            list_obb_files=$(ls -1 $workdir | grep "obb")
             if [ "${list_obb_files}" != "" ] ; then
 
                 print_yellow "Detect OBB dir:"
