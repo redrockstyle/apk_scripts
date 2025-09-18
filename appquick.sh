@@ -269,7 +269,7 @@ extract_and_install() {
             ${path_adb} ${select_arg[@]} install-multiple -r ${workdir}/*.apk
             if [ $? -ne 0 ] ; then
                 print_red "Install is failed";
-                rm -rf $rand_dir
+                rm -rf $workdir
                 die
             fi
         fi
