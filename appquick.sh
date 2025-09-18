@@ -135,7 +135,15 @@ is_inst_pkg() {
 }
 
 is_base_apk() {
-    if [[ $(echo "$1" | head -n 1 | grep "base") != "" ]] ; then
+    if [[ $(echo "$1" | head -n 1 | grep "config") != "" ]] ; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+is_split_aapt() {
+    if [[ $(echo "$1" | head -n 1 | grep "split") != "" ]] ; then
         return 0
     else
         return 1
@@ -211,7 +219,7 @@ search_and_import() {
 extract_and_install() {
     if [ "${app: -4}" == ".apk" ] ; then
         get_aapt_dump ${app}
-        if ! is_base_apk $aapt_info ; then
+        if is_split_aapt $aapt_info ; then
             print_red "File \"${app}\" is part of the \"split\" format"
             die
         fi
