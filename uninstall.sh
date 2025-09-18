@@ -8,9 +8,10 @@ uninstall_src(){
 
     if [ ! -f "$usr_path" ]; then
       printf "%-10s %-26s %s\n" "$name_bin" "$usr_path" "Failed: Tool is not found"
+    else
+      rm -f "$usr_path"
+      printf "%-10s %-26s %s\n" "$name_bin" "$usr_path" "Success"
     fi
-    rm -f "$usr_path"
-    printf "%-10s %-26s %s\n" "$name_bin" "$usr_path" "Success"
 }
 
 echo "Unistalling apk_scripts..."
