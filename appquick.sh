@@ -125,6 +125,19 @@ print_green_echo_if_not_empty(){
         echo -e "$2"
     fi
 }
+run_with_spinner() {
+    local cmd="$1"
+    bash -c "$cmd" &
+    local pid=$!
+    spin='-\|/'
+    i=0
+    while kill -0 $pid 2>/dev/null
+    do
+        i=$(( (i+1) %4 ))
+        printf "\r[${spin:$i:1}] "
+        sleep .1
+    done
+}
 
 is_inst_pkg() {
     if [[ $(${path_adb} "${select_arg[@]}" shell pm list package | grep $1) == *"$1"* ]] ; then
@@ -169,7 +182,7 @@ get_aapt_dump() {
 remove_if_exists() {
     if is_inst_pkg $pkg ; then
         print_yellow "Removing ${pkg}:"
-        ${path_adb} ${select_arg[@]} shell pm uninstall $pkg
+        run_with_spinner "${path_adb} ${select_arg[@]} shell pm uninstall $pkg"
     fi
 }
 
@@ -228,7 +241,7 @@ extract_and_install() {
         if [ $i_flag -eq 1 ] ; then
             remove_if_exists ${pkg}
             print_yellow "Install ${pkg}:"
-            ${path_adb} ${select_arg[@]} install -r $app
+            run_with_spinner "${path_adb} ${select_arg[@]} install -r $app"
             echo ""
         fi
     elif [ "${app: -5}" == ".xapk" ] || [ "${app: -5}" == ".XAPK" ] \
@@ -274,7 +287,10 @@ extract_and_install() {
 
             print_yellow "Installing package ${old_app}..."
             print_verbose "Run command for install package: "${path_adb}" $(echo "${select_arg[@]}") install-multiple -r "${workdir}"/*.apk"
-            ${path_adb} ${select_arg[@]} install-multiple -r ${workdir}/*.apk
+            ${path_adb} ${select_arg[@]} install-multiple -r ${workdir}/*.apk &
+            pidwait=$!
+            spinner $pidwait &
+            wait $pidwait
             if [ $? -ne 0 ] ; then
                 print_red "Install is failed";
                 rm -rf $workdir
