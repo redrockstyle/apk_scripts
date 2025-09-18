@@ -15,7 +15,7 @@ PKG="$1"
 LANG="${2:-en}"
 COUNTRY="${3:-us}"
 
-python - <<PY
+python3 - <<PY
 import sys, json
 try:
     from google_play_scraper import app
