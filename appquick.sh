@@ -287,10 +287,7 @@ extract_and_install() {
 
             print_yellow "Installing package ${old_app}..."
             print_verbose "Run command for install package: "${path_adb}" $(echo "${select_arg[@]}") install-multiple -r "${workdir}"/*.apk"
-            ${path_adb} ${select_arg[@]} install-multiple -r ${workdir}/*.apk &
-            pidwait=$!
-            spinner $pidwait &
-            wait $pidwait
+            run_with_spinner "${path_adb} ${select_arg[@]} install-multiple -r ${workdir}/*.apk"
             if [ $? -ne 0 ] ; then
                 print_red "Install is failed";
                 rm -rf $workdir
