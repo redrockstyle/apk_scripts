@@ -29,8 +29,9 @@ fi
 
 printf "%-10s %-26s %s\n" "Tool" "Path" "Status"
 install_src "appquick.sh" "/opt/src/apk_scripts" "appquick"
-install_src "apprun.sh" "/opt/src/apk_scripts" "apprun"
-install_src "getcert.sh" "/opt/src/apk_scripts" "getcert"
+install_src "appinfo.sh"  "/opt/src/apk_scripts" "appinfo"
+install_src "apprun.sh"   "/opt/src/apk_scripts" "apprun"
+install_src "getcert.sh"  "/opt/src/apk_scripts" "getcert"
 
 echo "Done"
 exit 0
