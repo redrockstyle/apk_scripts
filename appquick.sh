@@ -546,7 +546,7 @@ print_misconf() {
         return
     fi
 
-    print_green "App misconfigurations:"
+    print_green "Potential misconfiguration:"
     confs=()
     parse_misconf_template "android:allowBackup=\"true\""
     parse_misconf_template "android:debuggable=\"true\""
