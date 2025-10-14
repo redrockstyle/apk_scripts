@@ -37,6 +37,7 @@ print_usage() {
     echo -e "(r)  restore\t- Restore data app"
     echo -e "(e)  extract\t- Extract backup file"
     echo -e "(bc) burpcert\t- Push burp cert in the system storage"
+    echo -e "(mc) mitmcert\t- Push mitmproxy cert in the system storage"
     echo -e "(sp) setproxy\t- Set http proxy android"
     echo -e "(pc) printcert\t- Print certs APK package"
     echo -e "(lc) logcat\t- Print logcat for app"
@@ -71,24 +72,21 @@ check_appname() {
     fi
 }
 check_connect() {
-    dev=$(adb devices -l 2>/dev/null | grep "device product")
-    if [ $? -ne 0 ] ; then
+#     dev=$(adb devices -l 2>/dev/null | grep "device product")
+#     if [ $? -ne 0 ] ; then
+#         msg_and_die "Device is not connected"
+#     fi
+    count=$(adb devices -l | wc -l)
+    if [[ $count < 3 ]] ; then
         msg_and_die "Device is not connected"
-    fi
-    count=$(echo $dev | wc -l)
-    if [ $count -ne 1 ] ; then
-        msg_and_die "Connected $count devices (one connect supported)"
+#     if [ $count -ne 1 ] ; then
+#         msg_and_die "Connected $count devices (one connect supported)"
     fi
 }
 do_install() {
     check_connect
-    if test -f $1; then
-        echo "Install $1"
-        adb install -r $1
-    else
-        echo "Call Intent to Google Play"
-        adb shell am start -W -a android.intent.action.VIEW -d $(echo -e "https://play.google.com/store/apps/details?id=$1")
-    fi
+    echo "Install $1"
+    adb install -r $1
 }
 do_start() {
     check_connect
@@ -148,6 +146,16 @@ do_burpcert() {
     adb push "${tmp_name}".0 /system/etc/security/cacerts/.
     rm "${tmp_name}".0
 }
+do_mitmproxy_cert(){
+    check_connect
+    tmp_name=$(openssl x509 -inform PEM -subject_hash_old -in "$1" |head -1)
+    mv "$1" "${tmp_name}".0
+    echo "Reload ADB root"
+    adb root
+    echo "Push certificate ${tmp_name}.0 to /system/etc/security/cacerts/${tmp_name}"
+    adb push "${tmp_name}".0 /system/etc/security/cacerts/.
+    rm "${tmp_name}".0
+}
 do_setproxy() {
     check_connect
     echo "Set $1 http proxy"
@@ -195,6 +203,7 @@ case $1 in
     restore|r) do_restore $2 ;;
     extract|e) do_extract $2 ;;
     burpcert|bc) do_burpcert $2 ;;
+    mitmcert|mc) do_mitmproxy_cert $2 ;;
     setproxy|sp) do_setproxy $2 ;;
     printcert|pc) do_printcerts $2 ;;
     logcat|lc) do_logcatapp $2 ;;
