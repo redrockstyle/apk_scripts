@@ -157,8 +157,10 @@ do_burpcert() {
     mv "${tmp_pem}" "${tmp_name}".0
     echo "Reload ADB root"
     adb root
+    adb shell "mount -o rw,remount /"
     echo "Push certificate ${tmp_name}.0 to /system/etc/security/cacerts/${tmp_name}"
     adb push "${tmp_name}".0 /system/etc/security/cacerts/.
+    adb shell "chmod 644 /system/etc/security/cacerts/${tmp_name}.0"
     rm "${tmp_name}".0
 }
 do_mitmproxy_cert(){
@@ -167,8 +169,10 @@ do_mitmproxy_cert(){
     mv "$1" "${tmp_name}".0
     echo "Reload ADB root"
     adb root
+    adb shell "mount -o rw,remount /"
     echo "Push certificate ${tmp_name}.0 to /system/etc/security/cacerts/${tmp_name}"
     adb push "${tmp_name}".0 /system/etc/security/cacerts/.
+    adb shell -c "chmod 644 /system/etc/security/cacerts/${tmp_name}.0"
     rm "${tmp_name}".0
 }
 do_setproxy() {
