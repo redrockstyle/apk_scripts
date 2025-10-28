@@ -29,18 +29,19 @@ print_prolog() {
 }
 print_usage() {
     echo "Usage: ${name} <command> <command_argument>"
-    echo -e "(i)  install\t- Clean install APK"
-    echo -e "(s)  start\t- Starting MainActivity"
-    echo -e "(f)  force-stop\t- Force-stop app"
-    echo -e "(rm) remove\t- Full uninstall app"
-    echo -e "(b)  backup\t- Backup data app"
-    echo -e "(r)  restore\t- Restore data app"
-    echo -e "(e)  extract\t- Extract backup file"
-    echo -e "(bc) burpcert\t- Push burp cert in the system storage"
-    echo -e "(mc) mitmcert\t- Push mitmproxy cert in the system storage"
-    echo -e "(sp) setproxy\t- Set http proxy android"
-    echo -e "(pc) printcert\t- Print certs APK package"
-    echo -e "(lc) logcat\t- Print logcat for app"
+    echo -e "(i)   install\t- Clean install APK"
+    echo -e "(s)   start\t- Starting MainActivity"
+    echo -e "(f)   force-stop\t- Force-stop app"
+    echo -e "(rm)  remove\t- Full uninstall app"
+    echo -e "(b)   backup\t- Backup data app"
+    echo -e "(r)   restore\t- Restore data app"
+    echo -e "(e)   extract\t- Extract backup file"
+    echo -e "(gsc) gensyscert\t- Generate system-certificate"
+    echo -e "(bc)  burpcert\t- Push burp cert in the system storage"
+    echo -e "(mc)  mitmcert\t- Push mitmproxy cert in the system storage"
+    echo -e "(sp)  setproxy\t- Set http proxy android"
+    echo -e "(pc)  printcert\t- Print certs APK package"
+    echo -e "(lc)  logcat\t- Print logcat for app"
 }
 print_example() {
     echo -e "Install:\t${name} i app.apk"
@@ -138,6 +139,15 @@ do_extract() {
     echo "Extract backup $1 file"
     dd if=$1 bs=24 skip=1 | zlib-flate -uncompress | tar xf -
 }
+do_syscert() {
+    check_connect
+    tmp_pem="bcert.pem"
+    echo "Convert certificate"
+    openssl x509 -inform DER -in $1 -out "${tmp_pem}"
+    tmp_name=$(openssl x509 -inform PEM -subject_hash_old -in "${tmp_pem}" |head -1)
+    mv "${tmp_pem}" "${tmp_name}".0
+    echo "Cert has been saved in ${tmp_name}.0"
+}
 do_burpcert() {
     check_connect
     tmp_pem="bcert.pem"
@@ -207,6 +217,7 @@ case $1 in
     backup|b) do_backup $2 ;;
     restore|r) do_restore $2 ;;
     extract|e) do_extract $2 ;;
+    gensyscert|gsc) do_syscert $2 ;;
     burpcert|bc) do_burpcert $2 ;;
     mitmcert|mc) do_mitmproxy_cert $2 ;;
     setproxy|sp) do_setproxy $2 ;;
