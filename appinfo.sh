@@ -1,13 +1,16 @@
 #!/bin/bash
 # App Info JSON ~ Request To Google Play
 
+name="appinfo"
+
 if [ -z "$1" ]; then
     echo "App Info JSON ~ Request To Google Play"
     echo "Requirements:   python, google-play-scrapper"
     echo "Repository:     github.com/redrockstyle/apk_scripts"
     echo ""
-    echo "Usage:          $0 <package.name> [lang] [country]"
-    echo "Example:        $0 some.package.name en us"
+    echo "Usage:          $name <some.package.name> [lang] [country]"
+    echo ""
+    echo "Example:        $name com.example.app en us"
     exit 0
 fi
 

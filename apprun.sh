@@ -1,7 +1,7 @@
 #!/bin/bash
 
 name="apprun"
-version="1.2.3"
+version="1.3.3"
 
 IFS=$'\n'
 RED='\033[0;31m'
@@ -29,19 +29,19 @@ print_prolog() {
 }
 print_usage() {
     echo "Usage: ${name} <command> <command_argument>"
-    echo -e "(i)   install\t- Clean install APK"
-    echo -e "(s)   start\t- Starting MainActivity"
+    echo -e "(i)   install\t\t- Clean install APK"
+    echo -e "(s)   start\t\t- Starting MainActivity"
     echo -e "(f)   force-stop\t- Force-stop app"
-    echo -e "(rm)  remove\t- Full uninstall app"
-    echo -e "(b)   backup\t- Backup data app"
-    echo -e "(r)   restore\t- Restore data app"
-    echo -e "(e)   extract\t- Extract backup file"
+    echo -e "(rm)  remove\t\t- Full uninstall app"
+    echo -e "(b)   backup\t\t- Backup data app"
+    echo -e "(r)   restore\t\t- Restore data app"
+    echo -e "(e)   extract\t\t- Extract backup file"
     echo -e "(gsc) gensyscert\t- Generate system-certificate"
-    echo -e "(bc)  burpcert\t- Push burp cert in the system storage"
-    echo -e "(mc)  mitmcert\t- Push mitmproxy cert in the system storage"
-    echo -e "(sp)  setproxy\t- Set http proxy android"
-    echo -e "(pc)  printcert\t- Print certs APK package"
-    echo -e "(lc)  logcat\t- Print logcat for app"
+    echo -e "(bc)  burpcert\t\t- Push burp cert in the system storage"
+    echo -e "(mc)  mitmcert\t\t- Push mitmproxy cert in the system storage"
+    echo -e "(sp)  setproxy\t\t- Set http proxy android"
+    echo -e "(pc)  printcert\t\t- Print certs APK package"
+    echo -e "(lc)  logcat\t\t- Print logcat for app"
 }
 print_example() {
     echo -e "Install:\t${name} i app.apk"
@@ -96,8 +96,15 @@ do_install() {
 }
 do_start() {
     check_connect
-    pkg=$(aapt dump badging $1|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')
-    act=$(aapt dump badging $1|awk -F" " '/launchable-activity/ {print $2}'|awk -F"'" '/name=/ {print $2}')
+    pkg=''
+    act=''
+    get_pkg_name $1 pkg
+    if [[ $1 == "" ]] ; then
+        pkg=$(aapt dump badging $1|awk -F" " '/package/ {print $2}'|awk -F"'" '/name=/ {print $2}')
+        act=$(aapt dump badging $1|awk -F" " '/launchable-activity/ {print $2}'|awk -F"'" '/name=/ {print $2}')
+    else
+        act=$(adb shell dumpsys package ${pkg} | sed -n '/MAIN:/{n;p;}' | awk -F" " '{print $2}' | sed 's/\///')
+    fi
     echo "Start $pkg/$act"
     adb shell am start -n $pkg/$act
 }
